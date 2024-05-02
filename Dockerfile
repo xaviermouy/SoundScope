@@ -5,6 +5,8 @@ FROM python:3.8-slim-buster
 
 LABEL authors = "Michael C Ryan - spacetime.engineer@gmail.com"
 
+WORKDIR /home
+
 RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-dev \
@@ -23,21 +25,21 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 #TODO: Add authenitcation configuration variables to be passed as build or runtime arguments.
 
-RUN git clone https://github.com/xaviermouy/PAM-viewer.git
+RUN git clone https://github.com/xaviermouy/SoundScope.git
 
 
 
 #TODO: Fix WORKDIR situation. Currently, the WORKDIR is set to PAM-viewer, but the PAM-viewer.py file is not found.
 
-WORKDIR PAM-viewer
-
-CMD [ "python3", "PAM-viewer/PAM-viewer.py" ]
 
 
-# Docker Run Command : docker run -it --rm -p 5006:5006 pam-viewer
+CMD [ "python3", "soundscope.py" ]
 
-# Docker Build Command : docker build -t pam-viewer .
 
-# Docker Push Command : docker push pam-viewer
+# Docker Run Command : docker run -it --rm -p 5006:5006 soundscope
 
-# Docker Pull Command : docker pull pam-viewer
+# Docker Build Command : docker build -t soundscope .
+
+# Docker Push Command : docker push soundscope
+
+# Docker Pull Command : docker pull soundscope
