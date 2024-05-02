@@ -76,6 +76,7 @@ global spectrogram_metadata_explorer
 global selected_sound
 global color_map_widget_spectrogram
 
+
 logger.debug("Initializing variables..") # Log initialization of variables.
 
 # Initialize variables / Parameters.
