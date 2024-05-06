@@ -14,5 +14,13 @@ Run soundscope:
 
     $ panel serve soundscope.py --show --autoreload
 
+or
+
+    $ python soundscope.py
 
 
+Generate Binaires:
+
+    $ pip install pyinstaller
+
+    $ pyinstaller --collect-all holoviews --collect-all param .\soundscope.py
