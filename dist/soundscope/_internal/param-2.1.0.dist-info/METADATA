@@ -1,0 +1,90 @@
+Metadata-Version: 2.3
+Name: param
+Version: 2.1.0
+Summary: Make your Python code clearer and more reliable by declaring Parameters.
+Project-URL: Homepage, https://param.holoviz.org/
+Project-URL: Tracker, https://github.com/holoviz/param/issues
+Project-URL: Releases, https://github.com/holoviz/param/releases
+Project-URL: Source, https://github.com/holoviz/param
+Project-URL: HoloViz, https://holoviz.org/
+Author-email: HoloViz <developers@holoviz.org>
+Maintainer-email: HoloViz <developers@holoviz.org>
+License: BSD-3-Clause
+License-File: LICENSE.txt
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.8
+Provides-Extra: all
+Requires-Dist: param[doc]; extra == 'all'
+Requires-Dist: param[lint]; extra == 'all'
+Requires-Dist: param[tests-full]; extra == 'all'
+Provides-Extra: doc
+Requires-Dist: nbsite==0.8.4; extra == 'doc'
+Requires-Dist: param[examples]; extra == 'doc'
+Requires-Dist: sphinx-remove-toctrees; extra == 'doc'
+Provides-Extra: examples
+Requires-Dist: aiohttp; extra == 'examples'
+Requires-Dist: pandas; extra == 'examples'
+Requires-Dist: panel; extra == 'examples'
+Provides-Extra: lint
+Requires-Dist: flake8; extra == 'lint'
+Requires-Dist: pre-commit; extra == 'lint'
+Provides-Extra: tests
+Requires-Dist: coverage[toml]; extra == 'tests'
+Requires-Dist: pytest; extra == 'tests'
+Requires-Dist: pytest-asyncio; extra == 'tests'
+Provides-Extra: tests-deser
+Requires-Dist: odfpy; extra == 'tests-deser'
+Requires-Dist: openpyxl; extra == 'tests-deser'
+Requires-Dist: pyarrow; extra == 'tests-deser'
+Requires-Dist: tables; extra == 'tests-deser'
+Requires-Dist: xlrd; extra == 'tests-deser'
+Provides-Extra: tests-examples
+Requires-Dist: nbval; extra == 'tests-examples'
+Requires-Dist: param[examples]; extra == 'tests-examples'
+Requires-Dist: pytest-asyncio; extra == 'tests-examples'
+Requires-Dist: pytest-xdist; extra == 'tests-examples'
+Requires-Dist: pytest<8.1; extra == 'tests-examples'
+Provides-Extra: tests-full
+Requires-Dist: cloudpickle; extra == 'tests-full'
+Requires-Dist: gmpy; extra == 'tests-full'
+Requires-Dist: ipython; extra == 'tests-full'
+Requires-Dist: jsonschema; extra == 'tests-full'
+Requires-Dist: nest-asyncio; extra == 'tests-full'
+Requires-Dist: numpy; extra == 'tests-full'
+Requires-Dist: pandas; extra == 'tests-full'
+Requires-Dist: param[tests-deser]; extra == 'tests-full'
+Requires-Dist: param[tests-examples]; extra == 'tests-full'
+Requires-Dist: param[tests]; extra == 'tests-full'
+Description-Content-Type: text/markdown
+
+<img src="https://raw.githubusercontent.com/holoviz/param/main/doc/_static/logo_horizontal.png" width=250>
+
+|    |    |
+| --- | --- |
+| Build Status | [![Linux/MacOS/Windows Build Status](https://github.com/holoviz/param/workflows/tests/badge.svg)](https://github.com/holoviz/param/actions/workflows/test.yaml)
+| Coverage | [![codecov](https://codecov.io/gh/holoviz/param/branch/main/graph/badge.svg)](https://codecov.io/gh/holoviz/param) ||
+| Latest dev release | [![Github tag](https://img.shields.io/github/v/tag/holoviz/param.svg?label=tag&colorB=11ccbb)](https://github.com/holoviz/param/tags) [![dev-site](https://img.shields.io/website-up-down-green-red/https/holoviz-dev.github.io/param.svg?label=dev%20website)](https://holoviz-dev.github.io/param/) |
+| Latest release | [![Github release](https://img.shields.io/github/release/holoviz/param.svg?label=tag&colorB=11ccbb)](https://github.com/holoviz/param/releases) [![PyPI version](https://img.shields.io/pypi/v/param.svg?colorB=cc77dd)](https://pypi.python.org/pypi/param) [![param version](https://img.shields.io/conda/v/pyviz/param.svg?colorB=4488ff&style=flat)](https://anaconda.org/pyviz/param) [![conda-forge version](https://img.shields.io/conda/v/conda-forge/param.svg?label=conda%7Cconda-forge&colorB=4488ff)](https://anaconda.org/conda-forge/param) [![defaults version](https://img.shields.io/conda/v/anaconda/param.svg?label=conda%7Cdefaults&style=flat&colorB=4488ff)](https://anaconda.org/anaconda/param) |
+| Python | [![Python support](https://img.shields.io/pypi/pyversions/param.svg)](https://pypi.org/project/param/)
+| Docs | [![gh-pages](https://img.shields.io/github/last-commit/holoviz/param/gh-pages.svg)](https://github.com/holoviz/param/tree/gh-pages) [![site](https://img.shields.io/website-up-down-green-red/https/param.holoviz.org.svg)](https://param.holoviz.org) |
+| Binder | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/holoviz/param/main?labpath=doc) |
+| Support | [![Discourse](https://img.shields.io/discourse/status?server=https%3A%2F%2Fdiscourse.holoviz.org)](https://discourse.holoviz.org/) |
+
+Param is a library providing Parameters: Python attributes extended to have features such as type and range checking, dynamically generated values, documentation strings, default values, etc., each of which is inherited from parent classes if not specified in a subclass.
+
+Param contains only two required Python files, with no external dependencies, and is provided freely for both non-commercial and commercial use under a BSD license, so that it can easily be included as part of other projects.
+
+Please see [param's website](https://param.holoviz.org) for official releases, installation instructions, documentation, and examples.
