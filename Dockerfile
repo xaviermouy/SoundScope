@@ -22,18 +22,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir numpy pandas panel ecosound matplotlib bokeh
 
 
-
-#TODO: Add authenitcation configuration variables to be passed as build or runtime arguments.
-
 RUN git clone https://github.com/xaviermouy/SoundScope.git
+RUN cd SoundScope-master
 
-
-
-#TODO: Fix WORKDIR situation. Currently, the WORKDIR is set to PAM-viewer, but the PAM-viewer.py file is not found.
-
-
-
-CMD [ "python3", "soundscope.py" ]
+CMD [ "panel serve", "--show --autoreload", "soundscope.py" ]
 
 
 # Docker Run Command : docker run -it --rm -p 5006:5006 soundscope

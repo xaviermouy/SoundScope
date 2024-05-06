@@ -14,13 +14,10 @@ from ecosound.core.audiotools import Sound # Ecosound Sound class object.
 from ecosound.core.spectrogram import Spectrogram # Ecosound Spectrogram class object.
 from ecosound.visualization.grapher_builder import GrapherFactory # Ecosound GrapherFactory class object.
 
-from dask.distributed import Client # Dask distributed client for parallel computing.
-
 import numpy as np # Numpy library for numerical manipulation in python3.
 import pandas as pd # Pandas library for dataframe objects.
 import datetime # Datetime library for datetime objects.
 import holoviews as hv # Holoviews library for interactive plotting.
-import hvplot.pandas # Holoviews plotting library for pandas objects.
 
 import tkinter as tk
 import tkinter.filedialog as file_chooser_dialog
@@ -37,7 +34,6 @@ from matplotlib import cm
 import warnings # Warnings library for displaying warnings.
 from loguru import logger # A great logger option.
 import datetime
-import aifc
 import sounddevice as sd
 
 # Configurations
