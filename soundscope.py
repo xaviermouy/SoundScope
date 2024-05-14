@@ -347,11 +347,56 @@ def create_1D_plot(class_label_widget, threshold_widget):
         update_active_data("1D plot")
             
         calculate_1D_aggregates( active_data )
-        
+
+        #hist = hv.Histogram(df_weekly.hvplot.bar(x='time', y='days_above_midpoint')).opts(title='Days Above Midpoint',
+        #                                                                                  xformatter=formatter,
+        #                                                                                  width=700)
+
         dateformatter = DatetimeTickFormatter(days='%d %B %Y')
-        bin_count = int(str(active_data.data['date'].max() - active_data.data['date'].min()).split(" ")[0])
-        plot = pd.DataFrame(active_data.data).hvplot.hist('date', hover_color = "pink", nonselection_color = "light_blue", selection_color = "red", height=580, bin_range=(pd.Timestamp(active_data.data['date'].min()), pd.Timestamp(active_data.data['date'].max())),  bins = bin_count ) # This is where the histogram is created.
-        lineplot_tap.source = plot 
+        plot = aggregate_1D.hvplot(
+            #kind='step',
+            kind='bar',
+            tools=['tap'],#, 'box_select', 'lasso_select'],
+            # active_tools = ['tap'],
+            width=900,
+            height=600,
+            rot=70,
+            #xformatter=dateformatter,
+            title='Daily detections',
+            xlabel='Date',
+            ylabel='Detections',
+            fontsize={'title': 10, 'xticks': 10, 'yticks': 10},
+        ).opts(active_tools=['wheel_zoom'])
+
+        # plot = hv.Histogram(
+        #     aggregate_1D.hvplot(
+        #             #kind='step',
+        #             kind='bar',
+        #             tools=['tap'],#, 'box_select', 'lasso_select'],
+        #             #active_tools = ['tap'],
+        #             #width=900,
+        #             #height=600,
+        #             #rot=70,
+        #     )).opts(
+        #     title='Daily detections',
+        #     xlabel='Date',
+        #     ylabel='Detections',
+        #     xformatter=dateformatter,
+        #     width=900,
+        #     height=600,
+        #     #active_tools=['tap'],
+        # )
+
+
+
+        lineplot_tap.source = plot
+
+        #crime.hvplot.bar(x='Year', y='Violent Crime rate', rot=90)
+
+        #dateformatter = DatetimeTickFormatter(days='%d %B %Y')
+        #bin_count = int(str(active_data.data['date'].max() - active_data.data['date'].min()).split(" ")[0])
+        #plot = pd.DataFrame(active_data.data).hvplot.hist('date', hover_color = "pink", nonselection_color = "light_blue", selection_color = "red", height=580, bin_range=(pd.Timestamp(active_data.data['date'].min()), pd.Timestamp(active_data.data['date'].max())),  bins = bin_count ) # This is where the histogram is created.
+        #lineplot_tap.source = plot
         return plot
 
         
@@ -403,7 +448,7 @@ def create_2D_plot(class_label_widget, threshold_widget, color_map_widget_plot2D
             cmap = color_map_widget_plot2D.name,
             #cmap = color_map_widget_plot2D,
             xaxis ='bottom',
-            #xformatter=dateformatter,        
+            #xformatter=dateformatter,
             rot = 70,
             width = 900, height = 500).opts(
                        
@@ -440,7 +485,7 @@ def find_audio_files(date_query,audio_files,bin_duration_sec=3600):
 
 ## 1D plot functionalities
 
-lineplot_tap = hv.streams.Tap(x=0,y=0)
+#lineplot_tap = hv.streams.Tap(x=0,y=0)
 def get_lineplot_tap_date():
     """_summary_
 
@@ -620,10 +665,14 @@ def callback_histogram_selection(*events):
     
 
     logger.debug(events)
-    
-    selected_year = str(events[0][2].x).split("T")[0].split("-")[0] # This will happen when histogram cell is clicked.
-    selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
-    selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
+
+    date_broken_down = str(events[0][2].x).split()[0].split("-")
+    selected_year =  date_broken_down[0] # This will happen when histogram cell is clicked.
+    selected_month = date_broken_down[1]
+    selected_day = date_broken_down[2]
+    #selected_year = str(events[0][2].x).split("T")[0].split("-")[0] # This will happen when histogram cell is clicked.
+    #selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
+    #selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
     
     
     selection_time_initial = datetime.datetime(int(selected_year), int(selected_month), int(selected_day), 0, 0, 0)
