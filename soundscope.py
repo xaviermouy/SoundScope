@@ -351,7 +351,7 @@ def create_1D_plot(class_label_widget, threshold_widget):
         #hist = hv.Histogram(df_weekly.hvplot.bar(x='time', y='days_above_midpoint')).opts(title='Days Above Midpoint',
         #                                                                                  xformatter=formatter,
         #                                                                                  width=700)
-
+        # to fix with date format, check this => https://discourse.holoviz.org/t/workaround-for-date-based-histogram-tick-labels/788
         dateformatter = DatetimeTickFormatter(days='%d %B %Y')
         plot = aggregate_1D.hvplot(
             #kind='step',
@@ -365,8 +365,10 @@ def create_1D_plot(class_label_widget, threshold_widget):
             title='Daily detections',
             xlabel='Date',
             ylabel='Detections',
+            grid=True,
             fontsize={'title': 10, 'xticks': 10, 'yticks': 10},
-        ).opts(active_tools=['wheel_zoom'])
+        ).opts(active_tools=['wheel_zoom'],
+               nonselection_alpha = 0.5)
 
         # plot = hv.Histogram(
         #     aggregate_1D.hvplot(
@@ -455,7 +457,7 @@ def create_2D_plot(class_label_widget, threshold_widget, color_map_widget_plot2D
                 fontsize={'title': 10, 'xticks': 10, 'yticks': 10},
                 tools = ['tap', 'hover'],
                 responsive = True,
-                nonselection_alpha = 1,
+                nonselection_alpha = 0.5,
                 selection_alpha = 1,        
                 #autorange="y",
             )   
