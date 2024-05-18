@@ -1024,7 +1024,7 @@ watcher_lineplot = lineplot_tap.param.watch(callback_histogram_selection, ['x','
 
 # Panel Template
 
-template = pn.template.BootstrapTemplate( title = 'SoundScope',logo='SoundScopeLogo.png' ) # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
+template = pn.template.BootstrapTemplate( title = 'SoundScope',logo='SoundScopeLogo.png', favicon = "images/favicon.ico" ) # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
 
 
 # Buttons
@@ -1091,6 +1091,7 @@ display_welome_picture()
 # Serve Application
 
 logger.debug("Serving Panel Template..")
+
 
 template.servable()
 template.show()
