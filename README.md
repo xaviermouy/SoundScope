@@ -19,8 +19,15 @@ or
     $ python soundscope.py
 
 
-Generate Binaires:
+
+To Generate Binaires:
+
+- Make sure to work with the binary branch which contains extra code to optimize the binaries.
+
+- First, install pyinstaller:
 
     $ pip install pyinstaller
 
-    $ pyinstaller --collect-all holoviews --collect-all param .\soundscope.py
+- Next, run this command to generate a dist directory where the exe will be provided.
+
+    $ pyinstaller -i  SoundScopeLogo.png --collect-all holoviews --collect-all param .\soundscope.py
