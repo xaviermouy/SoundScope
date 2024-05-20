@@ -24,10 +24,10 @@ To Generate Binaires:
 
 - Make sure to work with the binary branch which contains extra code to optimize the binaries.
 
-- First, install pyinstaller:
+1.) First, install pyinstaller:
 
     $ pip install pyinstaller
 
-- Next, run this command to generate a dist directory where the exe will be provided.
+2.) Next, run this command to generate a dist directory where the exe will be provided.
 
     $ pyinstaller -i  SoundScopeLogo.png --collect-all holoviews --collect-all param .\soundscope.py
