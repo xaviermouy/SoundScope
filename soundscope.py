@@ -763,7 +763,7 @@ def display_welome_picture():
     import matplotlib.image as mpimg
     #import matplotlib.pyplot as plt
 
-    img = mpimg.imread('SoundScopeWelcome.png')
+    img = mpimg.imread('images/SoundScopeWelcome.png')
     #imgplot = plt.imshow(img)
 
     # fig, ax = graph.show(display=False)  # Create a figure and axes object.
@@ -1075,7 +1075,7 @@ watcher_lineplot = lineplot_tap.param.watch(callback_histogram_selection, ['x','
 
 # Panel Template
 
-template = pn.template.BootstrapTemplate( title = 'SoundScope',logo='SoundScopeLogo.png', favicon = "images/favicon.ico" ) # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
+template = pn.template.BootstrapTemplate( title = 'SoundScope',logo='images/SoundScopeLogo.png', favicon = "images/favicon.ico" ) # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
 
 
 # Buttons

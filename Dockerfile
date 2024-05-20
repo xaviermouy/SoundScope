@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 RUN git clone https://github.com/xaviermouy/SoundScope.git
 RUN cd SoundScope-master
 
-CMD [ "panel serve", "--show --autoreload", "soundscope.py" ]
+CMD [ "python", "soundscope.py" ]
 
 
 # Docker Run Command : docker run -it --rm -p 5006:5006 soundscope

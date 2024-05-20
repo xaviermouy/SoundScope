@@ -30,4 +30,6 @@ To Generate Binaires:
 
 2.) Next, run this command to generate a dist directory where the exe will be provided.
 
-    $ pyinstaller -i  SoundScopeLogo.png --collect-all holoviews --collect-all param .\soundscope.py
+    $ pyinstaller -i  images\SoundScopeLogo.png --collect-all holoviews --collect-all param .\soundscope.py
+
+3.) Copy over the images directory to the dist folder.
