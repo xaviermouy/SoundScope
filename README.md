@@ -1,4 +1,6 @@
-# PAM-viewer
+# SoundScope
+
+This application was developed with a conda-python3.9 enviornment. The build directions are coming soon. For now refer to the Dockerfile. It utilizes the panel/holoviz library to operate on Annotation objects.  
 
 To run development build just clone and run the python3 implementation.
 
