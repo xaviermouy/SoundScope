@@ -18,6 +18,7 @@ pipenv has only been useful for freezing a pipfile.lock and using it to make a r
 
 
 
+
 ### Clone SoundScope
 
 - To run development build just clone and run the python3 implementation.
