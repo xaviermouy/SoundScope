@@ -41,6 +41,9 @@ import sounddevice as sd
 
 # Configurations
 
+
+
+    
 warnings.filterwarnings('always') # Warning configuration.
 np.random.seed(7)
 #pn.extension('tabulator', 'terminal','ipywidgets', sizing_mode = 'stretch_width', loading_spinner = 'dots', notifications = True) # Panel extension configuration.
