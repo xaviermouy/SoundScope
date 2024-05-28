@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.8-slim-buster
+FROM python:3.9-slim-buster
 
 
 LABEL authors = "Michael C Ryan - spacetime.engineer@gmail.com"
@@ -17,15 +17,19 @@ RUN apt-get update && apt-get install -y \
     python3-setuptools \
     python3-venv \
     git \
+    python3-tk \
+    libportaudio2 \
     && apt-get clean
 
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir numpy pandas panel ecosound matplotlib bokeh
+    pip install --no-cache-dir numpy pandas panel ecosound matplotlib bokeh holoviews hvplot loguru sounddevice
 
 
-RUN git clone https://github.com/xaviermouy/SoundScope.git
-RUN cd SoundScope-master
-
+RUN git clone https://github.com/mryan11/PSD-PAB-SoundScope.git
+RUN cd PSD-PAB-SoundScope
+# Copy contents into image/container.
+COPY . .
+RUN rm -rf PSD-PAB-SoundScope
 CMD [ "python", "soundscope.py" ]
 
 

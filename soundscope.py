@@ -1145,4 +1145,4 @@ logger.debug("Serving Panel Template..")
 
 
 template.servable()
-template.show()
+template.show(port = 5006, threaded = True, websocket_origin = 'localhost:5006')
