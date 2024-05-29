@@ -1,5 +1,8 @@
 # SoundScope
 
+This application was developed with a conda-python3.9 enviornment. The build directions are coming soon. For now refer to the Dockerfile. It utilizes the panel/holoviz library to operate on Annotation objects.  
+
+
 ### Warning
 To build a development environment there are a few things to consider. First. There are apt-get packages that are required and so only binaries or docker seem to be worthwhile deployment options.
 
