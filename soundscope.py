@@ -42,6 +42,9 @@ import sounddevice as sd
 
 # Configurations
 
+
+
+    
 warnings.filterwarnings('always') # Warning configuration.
 np.random.seed(7)
 #pn.extension('tabulator', 'terminal','ipywidgets', sizing_mode = 'stretch_width', loading_spinner = 'dots', notifications = True) # Panel extension configuration.
@@ -1146,4 +1149,4 @@ logger.debug("Serving Panel Template..")
 
 
 template.servable()
-template.show()
+template.show(port = 5006, threaded = True, websocket_origin = 'localhost:5006')

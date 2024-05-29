@@ -18,32 +18,41 @@ RUN apt-get update && apt-get install -y \
     python3-setuptools \
     python3-venv \
     git \
+    python3-tk \
+    libportaudio2 \
+    x11-xserver-utils \
     && apt-get clean
 
-# Install package manager and required python libraries. 
+
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir numpy pandas panel ecosound matplotlib loguru bokeh tk
+    pip install --no-cache-dir numpy pandas panel ecosound matplotlib bokeh holoviews hvplot loguru sounddevice pipenv
 
-# Untested after ths line ; We will need to download/unzip repo and navigate to application directory.
-# Next we just run the file with python.
-RUN git clone https://github.com/xaviermouy/SoundScope.git 
-RUN cd SoundScope-master
+RUN git clone https://github.com/mryan11/PSD-PAB-SoundScope.git
+RUN cd PSD-PAB-SoundScope
+# Copy contents into image/container.
+COPY . .
 
+
+RUN rm -rf PSD-PAB-SoundScope
 CMD [ "python", "soundscope.py" ]
 
 
-# Docker Run Command
 
-#    $ docker run -it --rm -p 5006:5006 soundscope
+# Docker Run Command (testing): 
+
+#     $ docker run -it --rm -p 5006:5006 -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY soundscope
+
+# Docker Run Command : 
+
+#     $ docker run -it --rm -p 5006:5006 soundscope
 
 # Docker Build Command 
     
 #     $ docker build -t soundscope .
 
-# Docker Push Command
-    
-#    $ docker push soundscope
 
-# Docker Pull Command 
-    
-#    $ docker pull soundscope
+
+# The main problem with this dockerfile is that it is not able to run the GUI application unless I remove tkinter which I am ok with. Panel has a solution which I can implament.
+# The other problem is that I need pipenv to lock down the python library versions becasue I value the purpose of the pipfile.lock/pipfile however I dont want insinuate that this can be run without docker. I just needed the version numbers.
+# in reality ythe port audio library is required to run this application and it lives outside the scope of anythin pipenv can well define.
+

@@ -1,0 +1,21 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "*"
+pandas = "*"
+panel = "*"
+ecosound = "*"
+matplotlib = "*"
+bokeh = "*"
+holoviews = "*"
+hvplot = "*"
+loguru = "*"
+sounddevice = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
