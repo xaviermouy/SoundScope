@@ -1,13 +1,15 @@
 # syntax=docker/dockerfile:1
 
+# This Dockerfile is used to create a Docker image that runs the SoundScope application.
 FROM python:3.9-slim-buster
 
-
+# Metadata
 LABEL authors = "Michael C Ryan - spacetime.engineer@gmail.com"
 
-
+# Set the working directory to /home
 WORKDIR /home
 
+# Install required libraries.
 RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-dev \
@@ -23,30 +25,29 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 
+# Upgrade pip to the latest version.
+RUN pip install --no-cache-dir --upgrade pip
 
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir numpy pandas panel ecosound matplotlib bokeh holoviews hvplot loguru sounddevice pipenv
-
+# Clone the PSD-PAB-SoundScope repository.
 RUN git clone https://github.com/mryan11/PSD-PAB-SoundScope.git
+
+# Change directory to the recently cloned PSD-PAB-SoundScope.
 RUN cd PSD-PAB-SoundScope
-# Copy contents into image/container.
+
+# Copy contents of PSD-PAB-SoundScope into image/container.
 COPY . .
 
+# Install all required libraries. Note: These version numbers were aquired from a $ pip freeze command (FYI).
+RUN pip install -r requirements.txt
 
+# Remove the PSD-PAB-SoundScope directory because it is no longer needed.
 RUN rm -rf PSD-PAB-SoundScope
+
+# Run the application.
 CMD [ "python", "soundscope.py" ]
 
 
-# Docker Run Command : docker run -it --rm -p 5006:5006 -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY soundscope
+# To build and run with Docker use the following commands (Testing purposes only): 
 
-# Docker Build Command : docker build -t soundscope .
-
-# Docker Push Command : docker push soundscope
-
-# Docker Pull Command : docker pull soundscope
-
-
-# The main problem with this dockerfile is that it is not able to run the GUI application unless I remove tkinter which I am ok with. Panel has a solution which I can implament.
-# The other problem is that I need pipenv to lock down the python library versions becasue I value the purpose of the pipfile.lock/pipfile however I dont want insinuate that this can be run without docker. I just needed the version numbers.
-# in reality ythe port audio library is required to run this application and it lives outside the scope of anythin pipenv can well define.
-
+#     Build image : $ docker build -t soundscope .
+#     Run container : $ docker run -it --rm -p 5006:5006 -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY soundscope-session
