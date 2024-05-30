@@ -1,4 +1,3 @@
-
 #!/usr/bin/python3
 # coding: utf-8
 
@@ -15,7 +14,7 @@ from ecosound.core.audiotools import Sound # Ecosound Sound class object.
 from ecosound.core.spectrogram import Spectrogram # Ecosound Spectrogram class object.
 from ecosound.visualization.grapher_builder import GrapherFactory # Ecosound GrapherFactory class object.
 
-from dask.distributed import Client # Dask distributed client for parallel computing.
+#from dask.distributed import Client # Dask distributed client for parallel computing.
 
 import numpy as np # Numpy library for numerical manipulation in python3.
 import pandas as pd # Pandas library for dataframe objects.
@@ -30,7 +29,7 @@ from bokeh.models.formatters import DatetimeTickFormatter # Bokeh datetime forma
 from matplotlib.cm import Reds, Blues, Greens, viridis, hsv, binary, hot # Matplotlib colormaps.
 
 import matplotlib.pyplot as plt # Matplotlib plot object for plotting.
-from playsound import playsound
+#from playsound import playsound
 
 from matplotlib.figure import Figure
 from matplotlib import cm
@@ -38,11 +37,13 @@ from matplotlib import cm
 import warnings # Warnings library for displaying warnings.
 from loguru import logger # A great logger option.
 import datetime
-import aifc
 import sounddevice as sd
 
 # Configurations
 
+
+
+    
 warnings.filterwarnings('always') # Warning configuration.
 np.random.seed(7)
 #pn.extension('tabulator', 'terminal','ipywidgets', sizing_mode = 'stretch_width', loading_spinner = 'dots', notifications = True) # Panel extension configuration.
@@ -76,6 +77,13 @@ global spectrogram_plot_pane
 global spectrogram_metadata_explorer
 global selected_sound
 global color_map_widget_spectrogram
+
+global frame_dur_widget
+global fft_dur_widget
+global step_dur_widget
+global time_buffer_widget
+global frequency_buffer_widget
+
 
 logger.debug("Initializing variables..") # Log initialization of variables.
 
@@ -137,10 +145,18 @@ integration_time_widget.value = integration_time_widget.options[0]
 
 # colormap selectro for 2D plot
 color_map_widget_plot2D = pn.widgets.ColorMap(name='Colormap', options = cmaps_plot2D, ncols=1, height=70, width = 250, margin = (10,10,10,60))
-color_map_widget_spectrogram = pn.widgets.ColorMap(options = cmaps_plot2D, ncols=1, height=50, width = 200, margin = (30,10,10,10))
+#color_map_widget_spectrogram = pn.widgets.ColorMap(options = cmaps_plot2D, ncols=1, height=50, width = 200, margin = (30,10,10,10))
+color_map_widget_spectrogram = pn.widgets.ColorMap(name='Colormap', value=cmaps_plot2D['binary'],options = cmaps_plot2D, ncols=1, )
 
 file_selector = pn.widgets.FileSelector("~")
 file_input = pn.widgets.FileInput(accept=".nc")
+
+# Spectrogram widgets
+frame_dur_widget = pn.widgets.FloatInput(name='Frame length (s)', value=0.03, step=0.01, start=0.0001, end=10)
+fft_dur_widget = pn.widgets.FloatInput(name='FFT length (s)', value=0.08, step=0.01, start=0.0001, end=10)
+step_dur_widget = pn.widgets.FloatInput(name='Step (s)', value=0.01, step=0.01, start=0.001, end=10)
+time_buffer_widget = pn.widgets.FloatInput(name='Time buffer (s)', value=2, step=1, start=0, end=10)
+frequency_buffer_widget = pn.widgets.FloatInput(name='Frequency buffer (Hz)', value=100, step=1, start=0, end=10000)
 
 # Stream
 
@@ -154,7 +170,7 @@ detec_files_multi_select = pn.widgets.MultiSelect(name='Detections', value= [], 
 file_name_markdown = pn.pane.Markdown("", width=100)
 
 
-dataframe_explorer_widget = pn.widgets.Tabulator( name = 'Detection Dataframe Window', value = active_data.data, height = 655, disabled = True, selection = [0], pagination = 'remote' )
+dataframe_explorer_widget = pn.widgets.Tabulator( name = 'Detection Dataframe Window', selectable=1, value = active_data.data, height = 655, disabled = True, selection = [0], pagination = 'remote' )
 spectrogram_plot_pane = pn.pane.Matplotlib( name = 'Spectrogram', fixed_aspect = False, height = 565 )
 spectrogram_metadata_explorer =  pn.widgets.Tabulator( name = 'Metadata', sizing_mode = 'stretch_width', height = 656, disabled = True, selection = [0], pagination = 'remote', show_index = False)
 
@@ -277,6 +293,8 @@ def update_active_data(widget_name):
     global selection_interval
     global initial_datetime
     global final_datetime
+    global datetime_range_picker
+    global dataframe_explorer_widget
 
     if len(list(data_file_name)) > 0:
         
@@ -299,10 +317,14 @@ def update_active_data(widget_name):
         # create data aggregates
         # calculate_1D_aggregates( active_data )
         # calculate_2D_aggregates( active_data, agg_interval)
-        
+
+        #reset time filter
+        datetime_range_picker.value = (dataset.data['date'].min(), dataset.data['date'].max())
+        dataframe_explorer_widget.selection=[0]
+        #load_dataframe_explorer_widget(datetime_range_picker)
+
         # notification
         success_notification("New settings have been successfully applied to the "+widget_name.strip()+"!")
-    
     
 
 @pn.depends(class_label_widget, threshold_widget)
@@ -328,11 +350,58 @@ def create_1D_plot(class_label_widget, threshold_widget):
         update_active_data("1D plot")
             
         calculate_1D_aggregates( active_data )
-        
+
+        #hist = hv.Histogram(df_weekly.hvplot.bar(x='time', y='days_above_midpoint')).opts(title='Days Above Midpoint',
+        #                                                                                  xformatter=formatter,
+        #                                                                                  width=700)
+        # to fix with date format, check this => https://discourse.holoviz.org/t/workaround-for-date-based-histogram-tick-labels/788
         dateformatter = DatetimeTickFormatter(days='%d %B %Y')
-        bin_count = int(str(active_data.data['date'].max() - active_data.data['date'].min()).split(" ")[0])
-        plot = pd.DataFrame(active_data.data).hvplot.hist('date', hover_color = "pink", nonselection_color = "light_blue", selection_color = "red", height=580, bin_range=(pd.Timestamp(active_data.data['date'].min()), pd.Timestamp(active_data.data['date'].max())),  bins = bin_count ) # This is where the histogram is created.
-        lineplot_tap.source = plot 
+        plot = aggregate_1D.hvplot(
+            #kind='step',
+            kind='bar',
+            tools=['tap'],#, 'box_select', 'lasso_select'],
+            # active_tools = ['tap'],
+            width=900,
+            height=600,
+            rot=70,
+            #xformatter=dateformatter,
+            title='Daily detections',
+            xlabel='Date',
+            ylabel='Detections',
+            grid=True,
+            fontsize={'title': 10, 'xticks': 10, 'yticks': 10},
+        ).opts(active_tools=['wheel_zoom'],
+               nonselection_alpha = 0.5)
+
+        # plot = hv.Histogram(
+        #     aggregate_1D.hvplot(
+        #             #kind='step',
+        #             kind='bar',
+        #             tools=['tap'],#, 'box_select', 'lasso_select'],
+        #             #active_tools = ['tap'],
+        #             #width=900,
+        #             #height=600,
+        #             #rot=70,
+        #     )).opts(
+        #     title='Daily detections',
+        #     xlabel='Date',
+        #     ylabel='Detections',
+        #     xformatter=dateformatter,
+        #     width=900,
+        #     height=600,
+        #     #active_tools=['tap'],
+        # )
+
+
+
+        lineplot_tap.source = plot
+
+        #crime.hvplot.bar(x='Year', y='Violent Crime rate', rot=90)
+
+        #dateformatter = DatetimeTickFormatter(days='%d %B %Y')
+        #bin_count = int(str(active_data.data['date'].max() - active_data.data['date'].min()).split(" ")[0])
+        #plot = pd.DataFrame(active_data.data).hvplot.hist('date', hover_color = "pink", nonselection_color = "light_blue", selection_color = "red", height=580, bin_range=(pd.Timestamp(active_data.data['date'].min()), pd.Timestamp(active_data.data['date'].max())),  bins = bin_count ) # This is where the histogram is created.
+        #lineplot_tap.source = plot
         return plot
 
         
@@ -384,14 +453,14 @@ def create_2D_plot(class_label_widget, threshold_widget, color_map_widget_plot2D
             cmap = color_map_widget_plot2D.name,
             #cmap = color_map_widget_plot2D,
             xaxis ='bottom',
-            #xformatter=dateformatter,        
+            #xformatter=dateformatter,
             rot = 70,
             width = 900, height = 500).opts(
                        
                 fontsize={'title': 10, 'xticks': 10, 'yticks': 10},
                 tools = ['tap', 'hover'],
                 responsive = True,
-                nonselection_alpha = 1,
+                nonselection_alpha = 0.5,
                 selection_alpha = 1,        
                 #autorange="y",
             )   
@@ -421,7 +490,7 @@ def find_audio_files(date_query,audio_files,bin_duration_sec=3600):
 
 ## 1D plot functionalities
 
-lineplot_tap = hv.streams.Tap(x=0,y=0)
+#lineplot_tap = hv.streams.Tap(x=0,y=0)
 def get_lineplot_tap_date():
     """_summary_
 
@@ -601,10 +670,14 @@ def callback_histogram_selection(*events):
     
 
     logger.debug(events)
-    
-    selected_year = str(events[0][2].x).split("T")[0].split("-")[0] # This will happen when histogram cell is clicked.
-    selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
-    selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
+
+    date_broken_down = str(events[0][2].x).split()[0].split("-")
+    selected_year =  date_broken_down[0] # This will happen when histogram cell is clicked.
+    selected_month = date_broken_down[1]
+    selected_day = date_broken_down[2]
+    #selected_year = str(events[0][2].x).split("T")[0].split("-")[0] # This will happen when histogram cell is clicked.
+    #selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
+    #selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
     
     
     selection_time_initial = datetime.datetime(int(selected_year), int(selected_month), int(selected_day), 0, 0, 0)
@@ -688,7 +761,23 @@ def show_file_selector(event):
                 datetime_range_picker.value = (dataset.data['date'].min(), dataset.data['date'].max())
             
 
-        
+def display_welome_picture():
+    global spectrogram_plot_pane
+    import matplotlib.image as mpimg
+    #import matplotlib.pyplot as plt
+
+    img = mpimg.imread('images/SoundScopeWelcome.png')
+    #imgplot = plt.imshow(img)
+
+    # fig, ax = graph.show(display=False)  # Create a figure and axes object.
+    # fig.set_size_inches(14, 8)  # Set the size of the figure.
+    fig, ax = plt.subplots()
+    ax.imshow(img, aspect='1.5')
+    ax.axis('off')
+    #ax.set_aspect('equal', adjustable='box')
+    spectrogram_plot_pane.param.trigger("object")
+    spectrogram_plot_pane.object = fig
+
 # Spectrogram
 def spectrogram_plot(index = None):
     """The purpose of this function is to load the spectrogram plot pane. The plot depends on the index and play_sound widgets for interactivity.
@@ -706,17 +795,31 @@ def spectrogram_plot(index = None):
     global spectrogram_metadata_explorer
     global selected_sound
     global color_map_widget_spectrogram
+
+    global frame_dur_widget
+    global fft_dur_widget
+    global step_dur_widget
+    global time_buffer_widget
+    global frequency_buffer_widget
     
     if (type(index)==int) and (dataset is not None): # If there is an index value associated with a detection event.
         
-        frame = 0.03 #3000
-        nfft = 0.08 # 4096
-        step = 0.01 # 5
+        # frame = 0.03 #3000
+        # nfft = 0.08 # 4096
+        # step = 0.01 # 5
+        # window_type = 'hann'
+        # time_buffer = 2
+        # frequency_buffer = 100
+        #palet = 'Blues' # 'binary'
+
+        frame = frame_dur_widget.value  # 3000
+        nfft = fft_dur_widget.value  # 4096
+        step = step_dur_widget.value  # 5
         window_type = 'hann'
-        time_buffer = 2
-        frequency_buffer = 100
-        palet = 'Blues' # 'binary'
-        
+        time_buffer = time_buffer_widget.value
+        frequency_buffer = frequency_buffer_widget.value
+
+
         data_selection = active_data.data.loc[index]
         
         
@@ -863,6 +966,8 @@ def show_datetime_range_picker():
     
 @pn.depends(class_label_widget, threshold_widget, datetime_range_picker)
 def load_dataframe_explorer_widget(class_label_widget, threshold_widget, datetime_range_picker):
+#@pn.depends(datetime_range_picker)
+#def load_dataframe_explorer_widget(datetime_range_picker):
     """The purpose of this function it to load the active_data Annotation dataframe element into the DataFrame explorer widget.
 
     Returns:
@@ -897,6 +1002,7 @@ def load_dataframe_explorer_widget(class_label_widget, threshold_widget, datetim
                 try:
                     
                     dataframe_explorer_widget.value = subselection.data[['label_class','date','confidence']]
+
                     return dataframe_explorer_widget
                 
                 except IndexError:
@@ -907,7 +1013,9 @@ def click_dataframe_explorer_widget(event = None):
     global color_map_widget_spectrogram
     
     try:
-        
+        if len(dataframe_explorer_widget.selection)==0:
+            dataframe_explorer_widget.selection=[0]
+
         selected_raw_index = int(dataframe_explorer_widget.value.iloc[dataframe_explorer_widget.selection[0]].name)
         print(f'Index of the detection selected: {selected_raw_index}')
         print('s')
@@ -970,32 +1078,47 @@ watcher_lineplot = lineplot_tap.param.watch(callback_histogram_selection, ['x','
 
 # Panel Template
 
-template = pn.template.BootstrapTemplate( title = 'SoundScope',logo='SoundScopeLogo.png' ) # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
+template = pn.template.BootstrapTemplate( title = 'SoundScope',logo='images/SoundScopeLogo.png', favicon = "images/favicon.ico" ) # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
 
 
 # Buttons
 
-select_file_button = pn.widgets.Button(name = "Select file", button_type = 'primary') # This button is responsible for opening the file selector.
-play_sound_button = pn.widgets.Button(icon='player-play', name='Play', button_type='primary', icon_size='2em', width = 200, height = 50, margin = (30,10,10,75))
-stop_sound_button = pn.widgets.Button(icon='player-stop', name='Stop', button_type='primary', icon_size='2em', width = 200, height = 50, margin = (30,10,10,10))
+select_file_button = pn.widgets.Button(name = "Select file", button_type = 'primary',sizing_mode = 'stretch_width') # This button is responsible for opening the file selector.
+#play_sound_button = pn.widgets.Button(icon='player-play', name='Play', button_type='primary', icon_size='2em', width = 200, height = 50, margin = (30,10,10,75))
+#stop_sound_button = pn.widgets.Button(icon='player-stop', name='Stop', button_type='primary', icon_size='2em', width = 200, height = 50, margin = (30,10,10,10))
+play_sound_button = pn.widgets.Button(icon='player-play', name='Play', button_type='primary', icon_size='2em', width = 50, height = 50,)
+stop_sound_button = pn.widgets.Button(icon='player-stop', name='Stop', button_type='primary', icon_size='2em', width = 50, height = 50,)
+
+apply_spectro_settings_button = pn.widgets.Button(name = "Apply", button_type = 'primary') # This button is responsible for opening the file selector.
 
 # Widget boxes
 file_selection_label_widget = pn.widgets.StaticText(name='NetCDF file', value='Please select a file', sizing_mode='stretch_width') # Text with file selected.
-openfile_widgetbox = pn.WidgetBox( file_selection_label_widget, select_file_button, margin = (10,10), sizing_mode = 'stretch_width' ) # Widget object from python3 panel library. This object is a container for file selection related widgets. Ref : https://panel.holoviz.org/reference/layouts/WidgetBox.html
-settings_widgetbox = pn.WidgetBox( class_label_widget, threshold_widget, disabled = False, margin=(10,10), sizing_mode = 'stretch_width' ) # Widget object from python3 panel library. This object is a container for settings widgets. Ref : https://panel.holoviz.org/reference/layouts/WidgetBox.html
+#openfile_widgetbox = pn.WidgetBox( file_selection_label_widget, select_file_button, margin = (10,10), sizing_mode = 'stretch_width' ) # Widget object from python3 panel library. This object is a container for file selection related widgets. Ref : https://panel.holoviz.org/reference/layouts/WidgetBox.html
+openfile_widgetbox = pn.WidgetBox( file_selection_label_widget, select_file_button, sizing_mode = 'stretch_width' ) # Widget object from python3 panel library. This object is a container for file selection related widgets. Ref : https://panel.holoviz.org/reference/layouts/WidgetBox.html
+#filters_label_widget = pn.widgets.StaticText(name='Filters', value='', sizing_mode='stretch_width') # Text with file selected.
+settings_widgetbox = pn.WidgetBox(class_label_widget, threshold_widget, disabled = False, margin=(10,10), sizing_mode = 'stretch_width' ) # Widget object from python3 panel library. This object is a container for settings widgets. Ref : https://panel.holoviz.org/reference/layouts/WidgetBox.html
+#spectro_settings_label_widget = pn.widgets.StaticText(name='Spectrogram settings', value='', sizing_mode='stretch_width') # Text with file selected.
+spectro_settings_widgetbox = pn.WidgetBox(frame_dur_widget,fft_dur_widget,step_dur_widget,time_buffer_widget,frequency_buffer_widget, color_map_widget_spectrogram,apply_spectro_settings_button,disabled = False, margin=(10,10), sizing_mode = 'stretch_width' ) # Widget object from python3 panel library. This object is a container for settings widgets. Ref : https://panel.holoviz.org/reference/layouts/WidgetBox.html
+#playback_widgetbox = pn.WidgetBox(play_sound_button, stop_sound_button, sizing_mode = 'stretch_width' )
+
+#accordion = pn.Accordion(('Filters',settings_widgetbox),('Spectrogram settings',spectro_settings_widgetbox),('Playback',playback_widgetbox))
+accordion = pn.Accordion(('Filters',settings_widgetbox),('Spectrogram settings',spectro_settings_widgetbox))
 
 detec_files_multi_select = pn.widgets.MultiSelect(name='Detections', value= [], options=[], size=8)
 file_name_markdown = pn.pane.Markdown("", width=100)
 
+
+
 # Side panel
-template.sidebar.append( pn.Column( openfile_widgetbox, settings_widgetbox ) ) # Appends the openfile_widgetbox and settings_widgetbox to the sidebar object from panel template object.
+template.sidebar.append( pn.Column( openfile_widgetbox,accordion ) ) # Appends the openfile_widgetbox and settings_widgetbox to the sidebar object from panel template object.
+#template.sidebar.append( pn.Column(file_selection_label_widget,select_file_button,accordion ) ) # Appends the openfile_widgetbox and settings_widgetbox to the sidebar object from panel template object.
 
 # Main page
 top_panel_tabs = pn.Tabs( ('Hourly Detections', pn.WidgetBox(pn.Column(pn.Row(color_map_widget_plot2D, integration_time_widget),create_2D_plot), disabled = False, margin=(10,10), sizing_mode = 'stretch_width' )))
 top_panel_tabs.append(('Daily Detections', pn.WidgetBox( create_1D_plot, disabled = False, margin=(10,10), sizing_mode = 'stretch_width' ) )) # This is one place active data is updated.
 top_panel_tabs.append(('Custom Dates Selection', datetime_range_picker))
 
-spectrogram_tabs = pn.Tabs(( 'Spectrogram', pn.WidgetBox( pn.Column( pn.Row(play_sound_button, stop_sound_button, color_map_widget_spectrogram), spectrogram_plot_pane), disabled = False, margin=(10,10))))
+spectrogram_tabs = pn.Tabs(( 'Spectrogram', pn.WidgetBox( pn.Column( spectrogram_plot_pane,pn.Row(play_sound_button, stop_sound_button)), disabled = False, margin=(10,10))))
 spectrogram_tabs.append(( 'Metadata', pn.WidgetBox( spectrogram_metadata_explorer, disabled = True, margin=(10,10), sizing_mode = 'stretch_width' )))
 
 #bottom_panel = pn.Row(spectrogram_tabs,pn.WidgetBox( load_dataframe_explorer_widget, disabled = False, margin=(45,10,10,10), sizing_mode = 'stretch_both' ))
@@ -1013,12 +1136,16 @@ select_file_button.on_click( show_file_selector ) # Defines the action of the se
 play_sound_button.on_click( play_selected_sound )
 #load_button.on_click( get_selection ) # 
 stop_sound_button.on_click( stop_selected_sound )
+apply_spectro_settings_button.on_click(click_dataframe_explorer_widget)
 
 #template.modal[0].value = [""]
+
+display_welome_picture()
 
 # Serve Application
 
 logger.debug("Serving Panel Template..")
 
+
 template.servable()
-template.show()
+template.show(port = 5006, threaded = True, websocket_origin = 'localhost:5006')
