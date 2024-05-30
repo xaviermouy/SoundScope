@@ -78,7 +78,7 @@ To build and run with Docker:
 
 1.) Build image:
 
-    $ ddocker build -t soundscope .
+    $ docker build -t soundscope .
 
 2.) Run container
 
