@@ -31,7 +31,7 @@ You can open it directly in SoundScope. Note that it will allow you to play arou
 
 To examine the structure of the netCDF file you can open it in python with ecosound:
 
-```
+```python
 from ecosound.core.annotation import Annotation
 
 annot = Annotation()
