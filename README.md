@@ -41,7 +41,7 @@ annot.from_netcdf(r'.\SoundScope_data_examples\SoundScape_detections_example.nc'
 print(annot.data)
 
 ``` 
-The code above requires to have ecosound installed. To install ecosound use the command: pip intall ecosound
+The code above requires to have ecosound installed. To install ecosound use the command: **pip install ecosound**
 
 # Found a bug or want new feature?
 
