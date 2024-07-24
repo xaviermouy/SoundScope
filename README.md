@@ -5,7 +5,7 @@
 # What is SoundScope ?
 SoundScope is a python-based software that facilitates the visualization and manual verification of detections from automatic whale and fish sound detectors (or any other sound detectors). 
 It allows to display and navigate through detections time series, filter and sort by classification confidence, and dynamically produce spectrograms of the detections. SoundScope was initially
-created in the [Juanes Lab](https://juaneslab.weebly.com/) at the University of Victoria and is currently being developped in the [Passive Acoustic Branch](https://www.fisheries.noaa.gov/new-england-mid-atlantic/endangered-species-conservation/passive-acoustic-research-northeast#:~:text=We%20use%20passive%20acoustic%20technologies,affected%20by%20human%2Dmade%20sounds) of NOAA's Northeast Fisheries Science Center. 
+created in the [Juanes Lab](https://juaneslab.weebly.com/) at the University of Victoria and is currently being developped in the [Passive Acoustic Branch](https://www.fisheries.noaa.gov/new-england-mid-atlantic/endangered-species-conservation/passive-acoustic-research-northeast#:~:text=We%20use%20passive%20acoustic%20technologies,affected%20by%20human%2Dmade%20sounds of NOAA's Northeast Fisheries Science Center). 
 
 SoundScope is still under heavy development. Please don't hesitate to reach out if you want to use it or want to help with the development. 
 
@@ -42,6 +42,15 @@ print(annot.data)
 
 ``` 
 The code above requires to have ecosound installed. To install ecosound use the command: pip intall ecosound
+
+## Found a bug or want new feature?
+
+**Bugs:**
+If you found a bug please add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label "bug". PLease include as much information as possible.
+
+** New features:**
+If you want new functionalities to be added to SoundScope, adden try to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label "enhancement". Use the
+thumbs up emoji to boost the priority of a new features.
 
 # Development notes
 
