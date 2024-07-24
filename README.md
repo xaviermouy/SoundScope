@@ -43,7 +43,7 @@ print(annot.data)
 ``` 
 The code above requires to have ecosound installed. To install ecosound use the command: **pip install ecosound**
 
-# Found a bug or want new feature?
+# Found a bug or want new features?
 
 ### Bugs:
 If you found a bug please add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label "**bug**". Please include as much information as possible.
