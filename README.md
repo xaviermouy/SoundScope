@@ -1,5 +1,8 @@
 # SoundScope
 
+This application was developed with a conda-python3.9 enviornment. The build directions are coming soon. For now refer to the Dockerfile. It utilizes the panel/holoviz library to operate on Annotation objects.  
+
+
 ### Warning
 To build a development environment there are a few things to consider. First. There are apt-get packages that are required and so only binaries or docker seem to be worthwhile deployment options.
 
@@ -15,7 +18,6 @@ pipenv has only been useful for freezing a pipfile.lock and using it to make a r
 
 
 - If using anaconda, create a python 3.9 environment and from a vscode instance you can execute code from that environment by pressing ctrl-shift-p
-
 
 
 
@@ -78,7 +80,7 @@ To build and run with Docker:
 
 1.) Build image:
 
-    $ docker build -t soundscope .
+    $ ddocker build -t soundscope .
 
 2.) Run container
 
