@@ -1,4 +1,4 @@
-![alt text](/inages/SoundScopeWelcome.png) 
+![alt text](/images/SoundScopeWelcome.png) 
 # SoundScope
 
 ## What is SoundScope ?
