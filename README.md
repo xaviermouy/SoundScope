@@ -5,7 +5,7 @@
 # What is SoundScope ?
 SoundScope is a python-based software that facilitates the visualization and manual verification of detections from automatic whale and fish sound detectors (or any other sound detectors). 
 It allows to display and navigate through detections time series, filter and sort by classification confidence, and dynamically produce spectrograms of the detections. SoundScope was initially
-created in the [Juanes Lab](https://juaneslab.weebly.com/) at the University of Victoria and is currently being developped at the [NOAA-NEFSC Passive Acoustic Branch](https://www.fisheries.noaa.gov/new-england-mid-atlantic/endangered-species-conservation/passive-acoustic-research-northeast#:~:text=We%20use%20passive%20acoustic%20technologies,affected%20by%20human%2Dmade%20sounds). 
+created in the [Juanes Lab](https://juaneslab.weebly.com/) at the University of Victoria and is currently being developped at the [Passive Acoustic Branch of NOAA's Northeast Fisheries Science Center](https://www.fisheries.noaa.gov/new-england-mid-atlantic/endangered-species-conservation/passive-acoustic-research-northeast#:~:text=We%20use%20passive%20acoustic%20technologies,affected%20by%20human%2Dmade%20sounds). 
 
 SoundScope is still under heavy development. Please don't hesitate to reach out if you want to use it or want to help with the development. 
 
