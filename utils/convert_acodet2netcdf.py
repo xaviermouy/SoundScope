@@ -1,5 +1,6 @@
-''' Documentation
-
+''' 
+This script takes detection files from ACODET (Vincent's humpback detector) and converts them
+to  nc files compatible with ecosound/SoundScope.
 
 '''
 
@@ -10,16 +11,16 @@ import os
 import pandas as pd
 import uuid
 
+## User inputs
+detec_files_dir =r'.\PassiveAcoustics\DETECTOR_OUTPUT\PYTHON_HUMPBACK\Raw\NEFSC_GOM_202112_MONHEGAN\thresh_0.5\NEFSC_GOM_202112_MONHEGAN_ST\5418_48kHz_UTC' # location of the ACODET detection files
+audio_files_dir =r'.\PassiveAcoustics\BOTTOM_MOUNTED\NEFSC_GOM\NEFSC_GOM_202112_MONHEGAN\NEFSC_GOM_202112_MONHEGAN_ST\5418_48kHz_UTC' # Location of the audio files associated with the detections
+nc_files_out_dir = r'C:\Users\xavier.mouy\Desktop\test' # where the nc files will be created
+audio_file_extension = '.wav' # extention of the audio files in audio_files_dir
+audio_channel = 1 # channel of the audio file
+class_label = 'HB' # detection label to use in SoundScope
+detector_suffix='_annot_Humpback_20221130.txt' # suffic of teh ACODET detection files. This should be always stay the same (I think).
 
-detec_files_dir =r'\\nefscdata\PassiveAcoustics\DETECTOR_OUTPUT\PYTHON_HUMPBACK\Raw\NEFSC_GOM_202112_MONHEGAN\thresh_0.5\NEFSC_GOM_202112_MONHEGAN_ST\5418_48kHz_UTC'
-audio_files_dir =r'\\nefscdata\PassiveAcoustics_Soundfiles\BOTTOM_MOUNTED\NEFSC_GOM\NEFSC_GOM_202112_MONHEGAN\NEFSC_GOM_202112_MONHEGAN_ST\5418_48kHz_UTC'
-nc_files_out_dir = r'C:\Users\xavier.mouy\Desktop\test'
-audio_file_extension = '.wav'
-audio_channel = 1
-class_label = 'HB'
-detector_suffix='_annot_Humpback_20221130.txt'
-
-
+## script
 detec_files = list_files(detec_files_dir, detector_suffix)
 for detec_file in detec_files:
 
@@ -65,5 +66,4 @@ for detec_file in detec_files:
     # save a nc file:
     detec.to_netcdf(os.path.join(nc_files_out_dir,audio_file_name+audio_file_extension+'.nc'))
 
-    print('a')
 

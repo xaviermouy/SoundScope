@@ -9,7 +9,7 @@ created in the [Juanes Lab](https://juaneslab.weebly.com/) at the University of 
 
 SoundScope is still under heavy development. Please don't hesitate to reach out if you want to use it or want to help with the development. 
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/80ZeSBCuZ4U/0.jpg)](https://www.youtube.com/watch?v=80ZeSBCuZ4U)
+[![Youtube link](https://img.youtube.com/vi/80ZeSBCuZ4U/0.jpg)](https://www.youtube.com/watch?v=80ZeSBCuZ4U)
 
 # How to use it ?
 
@@ -23,8 +23,25 @@ Download the latest zip file, unzip it, and double click on soundscope.exe to la
 This is more involved as it requires to install python and required python libraries. For instructions see the "Development notes" section below. 
 
 # Input data format:
-Currently, SoundScope uses netCDF files as input. The data format in teh ndtCDF files follows the structure of the [Annotation](https://github.com/xaviermouy/ecosound/blob/master/ecosound/core/annotation.py) and [Measurement](https://github.com/xaviermouy/ecosound/blob/master/ecosound/core/measurement.py) objects defined by the [ecosound](https://github.com/xaviermouy/ecosound) library. 
-More documentation describing how to create these netCDF files will be added in the near future. In the meantime, you can have a look at the script [convert_acodet2netcdf.py](https://github.com/xaviermouy/SoundScope/blob/main/utils/convert_acodet2netcdf.py) in the "utils" folder which convert outputs from the [ACODET detector](https://github.com/vskode/acodet) to the SoundScope format.
+Currently, SoundScope uses netCDF files as input. The data format in the ndtCDF files follows the structure of the [Annotation](https://github.com/xaviermouy/ecosound/blob/master/ecosound/core/annotation.py) and [Measurement](https://github.com/xaviermouy/ecosound/blob/master/ecosound/core/measurement.py) objects defined by the [ecosound](https://github.com/xaviermouy/ecosound) library. 
+More documentation describing how to create these netCDF files will be added in the near future. In the meantime, you can have a look at the script [convert_acodet2netcdf.py](https://github.com/xaviermouy/SoundScope/blob/main/utils/convert_acodet2netcdf.py) in the "utils" folder which converts outputs from the [ACODET detector](https://github.com/vskode/acodet) to the SoundScope format.
+
+An example of netCDF file can be found in the folder [here](https://drive.google.com/drive/folders/1UCbsveXWZnqgaYKTtJ3XdINJCT15SGun?usp=drive_link). 
+You can open it directly in SoundScope. Note that it will allow you to play around with the detection plots, but will not be able to display the spectrogram of selected detections because it won't have access to the original audio data.
+
+To examine the structure of the netCDF file you can open it in python with ecosound:
+
+```
+from ecosound.core.annotation import Annotation
+
+annot = Annotation()
+annot.from_netcdf(r'.\SoundScope_data_examples\SoundScape_detections_example.nc')
+
+# all the detection data and metadate are in the pandas dataframe in annot.data
+print(annot.data)
+
+``` 
+The code above requires to have ecosound installed. To install ecosound use the command: pip intall ecosound
 
 # Development notes
 

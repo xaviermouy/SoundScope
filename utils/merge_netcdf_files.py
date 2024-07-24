@@ -1,5 +1,10 @@
-''' Documentation
-
+''' 
+This script takes all the netCDF files for a deployment and merges them into 
+a single master netCDF file that can be used with SoundScope. If audio files
+have moved since the detector was run, the middle part of teh script can be
+uncommented to also update the audio files path (if the audio_file_dir in the
+netCDF file is not valid, SoundScope will not be able to display spectrogram
+of the selected detetions).
 
 '''
 
