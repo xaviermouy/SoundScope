@@ -1,4 +1,4 @@
-<img src="/images/SoundScopeWelcome.png" width="600">
+<img src="/images/SoundScopeWelcome.png" width="300">
 
 # SoundScope
 
