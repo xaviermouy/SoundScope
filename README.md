@@ -1,4 +1,29 @@
+![alt text](./inages/SoundScopeWelcome.png) 
 # SoundScope
+
+## What is SoundScope ?
+SoundScope is a python-based software that facilitates the visualization and manual verification of detections from automatic whale and fish sound detectors (or any other sound detectors). 
+It allows to display and navigate through detections time series, filter and sort by classification confidence, and dynamically produce spectrograms of the detections. SoundScope was initially
+created in the [Juanes Lab](https://juaneslab.weebly.com/) at the University of Victoria and is currently being developped in the [Passive Acoustic Branch](https://www.fisheries.noaa.gov/new-england-mid-atlantic/endangered-species-conservation/passive-acoustic-research-northeast#:~:text=We%20use%20passive%20acoustic%20technologies,affected%20by%20human%2Dmade%20sounds) of NOAA's Northeast Fisheries Science Center. 
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/80ZeSBCuZ4U/0.jpg)](https://www.youtube.com/watch?v=80ZeSBCuZ4U)
+
+## How to use it ?
+SoundScope is still under heavy development. Please don't hesitate to reach out if you want to use it or want help with the development. 
+There are 2 ways to use SoundScope.
+
+### Download the latest binary 
+This is the easiest way as it does not require to install anything. The binaries are uploaded in this Google folder: [SoundScope binaries](https://drive.google.com/drive/folders/1QbgE7wPl62MbmT1tnLElolxzb44AaAhy?usp=sharing)
+Download the latest zip file, unzip it, and double click on soundscope.exe to launch the application.
+
+### Clone the Github repository
+This is more involved as it requires to install python and required python libraries. For instructions see the "Development notes" section below. 
+
+## Input data format:
+Currently, SoundScope uses netCDF files as input. The data format in teh ndtCDF files follows the structure of the [Annotation](https://github.com/xaviermouy/ecosound/blob/master/ecosound/core/annotation.py) and [Measurement](https://github.com/xaviermouy/ecosound/blob/master/ecosound/core/measurement.py) objects defined by the [ecosound](https://github.com/xaviermouy/ecosound) library. 
+More documentation describing how to create these netCDF files will be added in the near future. In the meantime, you can have a look at the script [convert_acodet2netcdf.py](https://github.com/xaviermouy/SoundScope/blob/main/utils/convert_acodet2netcdf.py) in the "utils" folder which convert outputs from the [ACODET detector](https://github.com/vskode/acodet) to the SoundScope format.
+
+## Development notes
 
 This application was developed with a conda-python3.9 enviornment. The build directions are coming soon. For now refer to the Dockerfile. It utilizes the panel/holoviz library to operate on Annotation objects.  
 
