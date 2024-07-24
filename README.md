@@ -15,11 +15,11 @@ SoundScope is still under heavy development. Please don't hesitate to reach out 
 
 There are 2 ways to use SoundScope:
 
-## Download the latest binary 
+### Download the latest binary 
 This is the easiest way as it does not require to install anything. The binaries are uploaded in this Google folder: [SoundScope binaries](https://drive.google.com/drive/folders/1QbgE7wPl62MbmT1tnLElolxzb44AaAhy?usp=sharing)
 Download the latest zip file, unzip it, and double click on soundscope.exe to launch the application.
 
-## Clone the Github repository
+### Clone the Github repository
 This is more involved as it requires to install python and required python libraries. For instructions see the "Development notes" section below. 
 
 # Input data format:
@@ -46,10 +46,10 @@ The code above requires to have ecosound installed. To install ecosound use the 
 # Found a bug or want new feature?
 
 ### Bugs:
-If you found a bug please add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label **bug**. Please include as much information as possible.
+If you found a bug please add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label "**bug**". Please include as much information as possible.
 
 ### New features:
-If you want new functionalities to be added to SoundScope, add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label **enhancement**. Use the
+If you want new functionalities to be added to SoundScope, add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label "**enhancement**". Use the
 thumbs up emoji to boost the priority of a new features.
 
 # Development notes
