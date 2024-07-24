@@ -1,4 +1,4 @@
-![alt text](/images/SoundScopeWelcome.png) 
+![alt text](/images/SoundScopeWelcome.png | width=100) 
 # SoundScope
 
 ## What is SoundScope ?
