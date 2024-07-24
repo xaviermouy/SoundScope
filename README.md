@@ -46,10 +46,10 @@ The code above requires to have ecosound installed. To install ecosound use the 
 # Found a bug or want new feature?
 
 ### Bugs:
-If you found a bug please add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label "bug". Please include as much information as possible.
+If you found a bug please add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label **bug**. Please include as much information as possible.
 
 ### New features:
-If you want new functionalities to be added to SoundScope, adden try to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label "enhancement". Use the
+If you want new functionalities to be added to SoundScope, add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label **enhancement**. Use the
 thumbs up emoji to boost the priority of a new features.
 
 # Development notes
