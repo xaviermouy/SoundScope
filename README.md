@@ -50,7 +50,7 @@ If you found a bug please add an entry to the [issues list](https://github.com/x
 
 ### New features:
 If you want new functionalities to be added to SoundScope, add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label "**enhancement**". Use the
-thumbs up emoji to boost the priority of a new features.
+thumbs-up emoji (:+1:) to boost the priority of a new features.
 
 # Development notes
 
