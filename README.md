@@ -1,4 +1,6 @@
-<img src="/images/SoundScopeWelcome.png" width="300">
+<p align="center">
+	<img src="/images/SoundScopeWelcome.png" width="300" />
+</p>
 
 # SoundScope
 
@@ -7,11 +9,13 @@ SoundScope is a python-based software that facilitates the visualization and man
 It allows to display and navigate through detections time series, filter and sort by classification confidence, and dynamically produce spectrograms of the detections. SoundScope was initially
 created in the [Juanes Lab](https://juaneslab.weebly.com/) at the University of Victoria and is currently being developped in the [Passive Acoustic Branch](https://www.fisheries.noaa.gov/new-england-mid-atlantic/endangered-species-conservation/passive-acoustic-research-northeast#:~:text=We%20use%20passive%20acoustic%20technologies,affected%20by%20human%2Dmade%20sounds) of NOAA's Northeast Fisheries Science Center. 
 
+SoundScope is still under heavy development. Please don't hesitate to reach out if you want to use it or want to help with the development. 
+
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/80ZeSBCuZ4U/0.jpg)](https://www.youtube.com/watch?v=80ZeSBCuZ4U)
 
 ## How to use it ?
-SoundScope is still under heavy development. Please don't hesitate to reach out if you want to use it or want help with the development. 
-There are 2 ways to use SoundScope.
+
+There are 2 ways to use SoundScope:
 
 ### Download the latest binary 
 This is the easiest way as it does not require to install anything. The binaries are uploaded in this Google folder: [SoundScope binaries](https://drive.google.com/drive/folders/1QbgE7wPl62MbmT1tnLElolxzb44AaAhy?usp=sharing)
