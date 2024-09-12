@@ -39,7 +39,7 @@ import warnings # Warnings library for displaying warnings.
 from loguru import logger # A great logger option.
 import datetime
 import sounddevice as sd
-
+from panel_modal import Modal
 # Configurations
 
 
@@ -50,7 +50,7 @@ np.random.seed(7)
 #pn.extension('tabulator', 'terminal','ipywidgets', sizing_mode = 'stretch_width', loading_spinner = 'dots', notifications = True) # Panel extension configuration.
 #pn.extension('tabulator', 'terminal', sizing_mode = 'stretch_width', loading_spinner = 'dots', notifications = True) # Panel extension configuration.
 pn.extension('tabulator',  sizing_mode = 'stretch_width', loading_spinner = 'dots', notifications = True) # Panel extension configuration.
-
+pn.extension("modal")
 pn.config.throttled = True # Update only when mouse click release.
 pn.extension(loading_spinner='dots', loading_color='lightblue') # Loading spinner, loading_color='#00aa41' .
 pn.param.ParamMethod.loading_indicator = True # Indicate to user when a loading session is done.
@@ -700,6 +700,9 @@ def callback_histogram_selection(*events):
     """
     
 
+def show_time_zone_configuration_modal(event):
+    
+    template.open_modal()
 
 
 def show_file_selector(event):
@@ -742,6 +745,9 @@ def show_file_selector(event):
                 
                 logger.info("Loading the selected file(s) : " + data_file_name ) # Log the file path.
                 dataframe_explorer_widget_locked = False
+                
+                show_time_zone_configuration_modal(event)
+                
                 load_dataset(data_file_name) # Load the dataset object with the .nc file.
                 update_active_data("Initial")
                 show_datetime_range_picker() # Show the datetime range slider.
@@ -749,6 +755,10 @@ def show_file_selector(event):
 
                 
                 template.close_modal() # Close the modal object from panel template object.
+
+
+                #TODO : Add the pleliminary time zone selection widget modal code here.
+                 # Show the time zone configuration modal.
             
             else:
                 
@@ -1024,7 +1034,6 @@ def click_dataframe_explorer_widget(event = None):
     
     except IndexError:
         #dataframe_explorer_widget.selection = []
-        spe
         return None
 
          
@@ -1081,8 +1090,10 @@ watcher_lineplot = lineplot_tap.param.watch(callback_histogram_selection, ['x','
 
 template = pn.template.BootstrapTemplate( title = 'SoundScope',logo='images/SoundScopeLogo.png', favicon = "images/favicon.ico" ) # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
 
+select = pn.widgets.Select(name='Select', options={'+1': 1, '0': 0}, width = 50, height = 50)
 
-# Buttons
+template.modal.append(pn.Column( pn.Row('Time zone of audio recordings:    ','UTC', select ), pn.Column( pn.Row('Time zone of the analysis recordings:    ','UTC', select ), pn.widgets.Button(name = "Ok", button_type = 'primary', width = 50, height = 50) ) ) )
+
 
 select_file_button = pn.widgets.Button(name = "Select file", button_type = 'primary',sizing_mode = 'stretch_width') # This button is responsible for opening the file selector.
 #play_sound_button = pn.widgets.Button(icon='player-play', name='Play', button_type='primary', icon_size='2em', width = 200, height = 50, margin = (30,10,10,75))
