@@ -1343,18 +1343,27 @@ template = pn.template.BootstrapTemplate(
     title="SoundScope", logo="images/SoundScopeLogo.png", favicon="images/favicon.ico"
 )  # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
 
-select = pn.widgets.Select(
-    name="Select", options={"+1": 1, "0": 0}, width=50, height=50
+timezone_audio_recording_select = pn.widgets.Select(
+    name="Time zone of audio recordings relative to UTC", options={"Select the time offset from UTC": False, "-12": -12, "-11": -11, "-10": -10, "-9": -9, "-8": -8, "-7": -7, "-6": -6, "-5": -5, "-4": -4, "-3": -3, "-2": -2, "-1": -1, "0": 0, "+1": 1, "+2": 2, "+3": 3, "+4": 4, "+5": 5, "+6": 6, "+7": 7, "+8": 8, "+9": 9, "+10": 10, "+11": 11, "+12": 12, "+13": 13, "+14": 14}, width=200, height=50, margin = 15
 )
+timezone_analysis_recording_select = pn.widgets.Select(
+        name="Time zone of the analysis recordings relative to UTC", options={"Select the time offset from UTC": False, "-12": -12, "-11": -11, "-10": -10, "-9": -9, "-8": -8, "-7": -7, "-6": -6, "-5": -5, "-4": -4, "-3": -3, "-2": -2, "-1": -1, "0": 0, "+1": 1, "+2": 2, "+3": 3, "+4": 4, "+5": 5, "+6": 6, "+7": 7, "+8": 8, "+9": 9, "+10": 10, "+11": 11, "+12": 12, "+13": 13, "+14": 14}, width=200, height=50, margin = 15
 
+)
 template.modal.append(
+    pn.WidgetBox(
+    
     pn.Column(
-        pn.Row("Time zone of audio recordings:    ", "UTC", select),
+        pn.Row(timezone_audio_recording_select),
         pn.Column(
-            pn.Row("Time zone of the analysis recordings:    ", "UTC", select),
-            pn.widgets.Button(name="Ok", button_type="primary", width=50, height=50),
+            pn.Row(timezone_analysis_recording_select),
+            pn.widgets.Button(name="Ok", button_type="primary", width=120, height=40, margin = 15),
         ),
-    )
+    ),
+    width = 500,
+    height=200
+)
+    
 )
 
 
@@ -1497,8 +1506,6 @@ template.main.append(pn.Column(top_panel_tabs, bottom_panel))
 
 # Modal
 
-# template.modal.append( file_selector ) # Appends file selector to model object.
-# template.modal.append( load_button ) # Appends load button to model object.
 select_file_button.on_click(
     show_file_selector
 )  # Defines the action of the select_file_button object which is a file selection module.
@@ -1506,8 +1513,6 @@ play_sound_button.on_click(play_selected_sound)
 # load_button.on_click( get_selection ) #
 stop_sound_button.on_click(stop_selected_sound)
 apply_spectro_settings_button.on_click(click_dataframe_explorer_widget)
-
-# template.modal[0].value = [""]
 
 display_welome_picture()
 
