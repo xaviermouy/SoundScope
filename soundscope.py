@@ -870,7 +870,23 @@ def callback_histogram_selection(*events):
 def show_time_zone_configuration_modal(event):
     template.open_modal()
 
+def close_time_zone_configuration_modal(event):
+    global data_file_name
+    load_dataset(
+        data_file_name
+    )  # Load the dataset object with the .nc file.
+    update_active_data("Initial data load event complete!")  # Update the active data object with the settings from the widgets.
+    show_datetime_range_picker()  # Show the datetime range slider.
+    # load_dataframe_explorer_widget(class_label_widget, threshold_widget, datetime_range_picker) # Load the dataframe explorer widget with the active_data object.
 
+    # Close the modal object from panel template object.
+
+    # TODO : Add the pleliminary time zone selection widget modal code here.
+    # Show the time zone configuration modal.  
+  
+    
+    template.close_modal()
+    
 def show_file_selector(event):
     """This function just opens the file explorer widget implemented as a panel modal.
 
@@ -919,17 +935,7 @@ def show_file_selector(event):
 
                 show_time_zone_configuration_modal(event)
 
-                load_dataset(
-                    data_file_name
-                )  # Load the dataset object with the .nc file.
-                update_active_data("Initial")
-                show_datetime_range_picker()  # Show the datetime range slider.
-                # load_dataframe_explorer_widget(class_label_widget, threshold_widget, datetime_range_picker) # Load the dataframe explorer widget with the active_data object.
-
-                template.close_modal()  # Close the modal object from panel template object.
-
-                # TODO : Add the pleliminary time zone selection widget modal code here.
-                # Show the time zone configuration modal.
+                
 
             else:
                 logger.warning(
@@ -1344,27 +1350,32 @@ template = pn.template.BootstrapTemplate(
 )  # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
 
 timezone_audio_recording_select = pn.widgets.Select(
-    name="Time zone of audio recordings relative to UTC", options={"Select the time offset from UTC": False, "-12": -12, "-11": -11, "-10": -10, "-9": -9, "-8": -8, "-7": -7, "-6": -6, "-5": -5, "-4": -4, "-3": -3, "-2": -2, "-1": -1, "0": 0, "+1": 1, "+2": 2, "+3": 3, "+4": 4, "+5": 5, "+6": 6, "+7": 7, "+8": 8, "+9": 9, "+10": 10, "+11": 11, "+12": 12, "+13": 13, "+14": 14}, width=200, height=50, margin = 15
+    name="Time zone of audio recordings relative to UTC", options={"Select the time offset from UTC": False, "-12": -12, "-11": -11, "-10": -10, "-9": -9, "-8": -8, "-7": -7, "-6": -6, "-5": -5, "-4": -4, "-3": -3, "-2": -2, "-1": -1, "0": 0, "+1": 1, "+2": 2, "+3": 3, "+4": 4, "+5": 5, "+6": 6, "+7": 7, "+8": 8, "+9": 9, "+10": 10, "+11": 11, "+12": 12, "+13": 13, "+14": 14}, width=250, height=50, margin = 15, align='center'
 )
 timezone_analysis_recording_select = pn.widgets.Select(
-        name="Time zone of the analysis recordings relative to UTC", options={"Select the time offset from UTC": False, "-12": -12, "-11": -11, "-10": -10, "-9": -9, "-8": -8, "-7": -7, "-6": -6, "-5": -5, "-4": -4, "-3": -3, "-2": -2, "-1": -1, "0": 0, "+1": 1, "+2": 2, "+3": 3, "+4": 4, "+5": 5, "+6": 6, "+7": 7, "+8": 8, "+9": 9, "+10": 10, "+11": 11, "+12": 12, "+13": 13, "+14": 14}, width=200, height=50, margin = 15
+        name="Time zone of the analysis recordings relative to UTC", options={"Select the time offset from UTC": False, "-12": -12, "-11": -11, "-10": -10, "-9": -9, "-8": -8, "-7": -7, "-6": -6, "-5": -5, "-4": -4, "-3": -3, "-2": -2, "-1": -1, "0": 0, "+1": 1, "+2": 2, "+3": 3, "+4": 4, "+5": 5, "+6": 6, "+7": 7, "+8": 8, "+9": 9, "+10": 10, "+11": 11, "+12": 12, "+13": 13, "+14": 14}, width=250, height=50, margin = 15, align='center'
 
 )
+modal_load_button = pn.widgets.Button(name="Ok", button_type="primary", width=250, height=40, margin = 17, align='center')
 template.modal.append(
     pn.WidgetBox(
     
     pn.Column(
-        pn.Row(timezone_audio_recording_select),
+        
         pn.Column(
-            pn.Row(timezone_analysis_recording_select),
-            pn.widgets.Button(name="Ok", button_type="primary", width=120, height=40, margin = 15),
+            timezone_audio_recording_select,
+            timezone_analysis_recording_select,
+            modal_load_button,
         ),
     ),
-    width = 500,
-    height=200
-)
+    align='center'
+    
     
 )
+
+)
+
+modal_load_button.on_click(close_time_zone_configuration_modal)
 
 
 select_file_button = pn.widgets.Button(
