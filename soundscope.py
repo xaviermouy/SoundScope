@@ -221,7 +221,7 @@ step_dur_widget = pn.widgets.FloatInput(
     name="Step (s)", value=0.01, step=0.01, start=0.001, end=10
 )
 time_buffer_widget = pn.widgets.FloatInput(
-    name="Time buffer (s)", value=2, step=1, start=0, end=10
+    name="Time buffer (s)", value=2, step=1, start=0, end=300
 )
 frequency_buffer_widget = pn.widgets.FloatInput(
     name="Frequency buffer (Hz)", value=100, step=1, start=0, end=10000
