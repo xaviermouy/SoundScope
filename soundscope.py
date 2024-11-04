@@ -670,154 +670,155 @@ def callback_heatmap_selection(*events):
     """
     Need to get an array of datetime objects for a selected day. We need the boundary conditions for the selected hour as a list or tuple.
     """
+    try:
+        selected_year = (
+            str(events[0][2].x).split("T")[0].split("-")[0]
+        )  # This will happen when histogram cell is clicked.
+        selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
+        selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
 
-    selected_year = (
-        str(events[0][2].x).split("T")[0].split("-")[0]
-    )  # This will happen when histogram cell is clicked.
-    selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
-    selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
+        selected_hour = str(events[0][2].y).split(".")[0]
+        selected_minute = str(events[0][2].y).split(".")[1]
+        base_ten_minute = float("0." + str(events[0][2].y).split(".")[1])
+        base_ten_time = float(selected_hour + "." + selected_minute)
 
-    selected_hour = str(events[0][2].y).split(".")[0]
-    selected_minute = str(events[0][2].y).split(".")[1]
-    base_ten_minute = float("0." + str(events[0][2].y).split(".")[1])
-    base_ten_time = float(selected_hour + "." + selected_minute)
+        logger.debug("selectied hour : " + str(selected_hour))
 
-    logger.debug("selectied hour : " + str(selected_hour))
+        if len(selected_hour.split("-")) > 1:  # Negative.
+            if int(selected_hour) == 0:
+                if float(base_ten_minute) < 0.5:  # Bottom of the zeroth cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        59,
+                        59,
+                        999999,
+                    )
 
-    if len(selected_hour.split("-")) > 1:  # Negative.
-        if int(selected_hour) == 0:
-            if float(base_ten_minute) < 0.5:  # Bottom of the zeroth cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    59,
-                    59,
-                    999999,
-                )
+        if len(selected_hour.split("-")) == 1:  # Positive or Zero.
+            if int(selected_hour) == 0:
+                if float(base_ten_minute) < 0.5:  # Top of the zeroth cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        59,
+                        59,
+                        999999,
+                    )
 
-    if len(selected_hour.split("-")) == 1:  # Positive or Zero.
-        if int(selected_hour) == 0:
-            if float(base_ten_minute) < 0.5:  # Top of the zeroth cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    59,
-                    59,
-                    999999,
-                )
+                if float(base_ten_minute) >= 0.5:  # Bottom of first cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour) + 1,
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour) + 1,
+                        59,
+                        59,
+                        999999,
+                    )
 
-            if float(base_ten_minute) >= 0.5:  # Bottom of first cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour) + 1,
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour) + 1,
-                    59,
-                    59,
-                    999999,
-                )
+            elif int(selected_hour) == 23:
+                if float(base_ten_minute) < 0.5:  # Bottom of selected_hour cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        59,
+                        59,
+                        999999,
+                    )
 
-        elif int(selected_hour) == 23:
-            if float(base_ten_minute) < 0.5:  # Bottom of selected_hour cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    59,
-                    59,
-                    999999,
-                )
+                if float(base_ten_minute) >= 0.5:  # Bottom of cell above.
+                    pass  # No cell is clicked
 
-            if float(base_ten_minute) >= 0.5:  # Bottom of cell above.
-                pass  # No cell is clicked
+            else:
+                if float(base_ten_minute) < 0.5:  # Bottom of selected_hour cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        59,
+                        59,
+                        999999,
+                    )
 
-        else:
-            if float(base_ten_minute) < 0.5:  # Bottom of selected_hour cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    59,
-                    59,
-                    999999,
-                )
+                if float(base_ten_minute) >= 0.5:  # Bottom of cell above.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour) + 1,
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour) + 1,
+                        59,
+                        59,
+                        999999,
+                    )
 
-            if float(base_ten_minute) >= 0.5:  # Bottom of cell above.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour) + 1,
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour) + 1,
-                    59,
-                    59,
-                    999999,
-                )
+        logger.debug("selection_time_initial : " + str(selection_time_initial))
+        logger.debug("selection_time_final : " + str(selection_time_final))
 
-    logger.debug("selection_time_initial : " + str(selection_time_initial))
-    logger.debug("selection_time_final : " + str(selection_time_final))
+        selection_interval = (selection_time_initial, selection_time_final)
+        initial_datetime = selection_time_initial.strftime("%Y-%m-%d %H:%M:%S.%f")
+        final_datetime = selection_time_final.strftime("%Y-%m-%d %H:%M:%S.%f")
 
-    selection_interval = (selection_time_initial, selection_time_final)
-    initial_datetime = selection_time_initial.strftime("%Y-%m-%d %H:%M:%S.%f")
-    final_datetime = selection_time_final.strftime("%Y-%m-%d %H:%M:%S.%f")
+        logger.debug("datetime_interval : " + str(selection_interval))
 
-    logger.debug("datetime_interval : " + str(selection_interval))
-
-    datetime_range_picker.value = selection_interval
-
+        datetime_range_picker.value = selection_interval
+    except IndexError:
+        logger.error("Please click inside the heatmap. This is a patch made for soundscope.")
 
 def callback_histogram_selection(*events):
     """_summary_
