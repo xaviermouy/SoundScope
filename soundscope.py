@@ -27,10 +27,9 @@ import numpy as np  # Numpy library for numerical manipulation in python3.
 import pandas as pd  # Pandas library for dataframe objects.
 import datetime  # Datetime library for datetime objects.
 import holoviews as hv  # Holoviews library for interactive plotting.
-import hvplot.pandas  # Holoviews plotting library for pandas objects.
-
+import hvplot.pandas
 import tkinter as tk
-import tkinter.filedialog as file_chooser_dialog
+import tkinter.filedialog
 
 from bokeh.models.formatters import (
     DatetimeTickFormatter,
@@ -74,7 +73,7 @@ pn.extension(
 pn.param.ParamMethod.loading_indicator = (
     True  # Indicate to user when a loading session is done.
 )
-# pn.extension('ipywidgets')
+
 pn.extension()
 # Global variables
 

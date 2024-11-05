@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y \
 
 
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir numpy pandas panel ecosound matplotlib bokeh holoviews hvplot loguru sounddevice pipenv
+    pip install --no-cache-dir numpy pandas panel ecosound matplotlib bokeh holoviews hvplot loguru sounddevice pipenv plotly
 
 RUN git clone https://github.com/mryan11/PSD-PAB-SoundScope.git
 RUN cd PSD-PAB-SoundScope
