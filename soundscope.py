@@ -2,11 +2,9 @@
 # coding: utf-8
 
 # Libraries
-
 import os  # For dealiing with paths and directories mostly.
 import panel as pn  # Flask like framework with a great library for modular installation of graphical components.
 import copy  # For use of deep copying. We use it in the creation of active data so that we will unhinder the original object's memory.
-
 from ecosound.core.tools import (
     filename_to_datetime,
 )  # Ecosound filename to datetime function.
@@ -19,16 +17,12 @@ from ecosound.core.spectrogram import Spectrogram  # Ecosound Spectrogram class 
 from ecosound.visualization.grapher_builder import (
     GrapherFactory,
 )  # Ecosound GrapherFactory class object.
-
 # from dask.distributed import Client # Dask distributed client for parallel computing.
-
-
 import numpy as np  # Numpy library for numerical manipulation in python3.
 import pandas as pd  # Pandas library for dataframe objects.
 import datetime  # Datetime library for datetime objects.
 import holoviews as hv  # Holoviews library for interactive plotting.
 import hvplot.pandas  # Holoviews plotting library for pandas objects.
-
 import tkinter as tk
 import tkinter.filedialog as file_chooser_dialog
 import matplotlib
@@ -45,26 +39,16 @@ from matplotlib.cm import (
     binary,
     hot,
 )  # Matplotlib colormaps.
-
 import matplotlib.pyplot as plt  # Matplotlib plot object for plotting.
-# from playsound import playsound
-
 from matplotlib.figure import Figure
 from matplotlib import cm
-
-
 import warnings  # Warnings library for displaying warnings.
 from loguru import logger  # A great logger option.
 import datetime
 import sounddevice as sd
-#from pandas.conftest import TIMEZONES
-#from panel_modal import Modal
-# Configurations
 
 warnings.filterwarnings("always")  # Warning configuration.
 np.random.seed(7)
-# pn.extension('tabulator', 'terminal','ipywidgets', sizing_mode = 'stretch_width', loading_spinner = 'dots', notifications = True) # Panel extension configuration.
-# pn.extension('tabulator', 'terminal', sizing_mode = 'stretch_width', loading_spinner = 'dots', notifications = True) # Panel extension configuration.
 pn.extension(
     "tabulator", sizing_mode="stretch_width", loading_spinner="dots", notifications=True
 )  # Panel extension configuration.
@@ -76,10 +60,8 @@ pn.extension(
 pn.param.ParamMethod.loading_indicator = (
     True  # Indicate to user when a loading session is done.
 )
-# pn.extension('ipywidgets')
 pn.extension()
 # Global variables
-
 global data_file_name  # path of NetCDF file
 data_file_name = ""
 global dataset  # detection/annotation ecosound object from netcdf file
@@ -108,7 +90,6 @@ global frequency_buffer_widget
 global recordings_timezone
 global analysis_timezone
 global TZ_offset
-
 
 logger.debug("Initializing variables..")  # Log initialization of variables.
 
@@ -471,11 +452,6 @@ def create_1D_plot(class_label_widget, threshold_widget):
         #                                                                                  width=700)
         # to fix with date format, check this => https://discourse.holoviz.org/t/workaround-for-date-based-histogram-tick-labels/788
 
-        # def hook(plot, element):
-        #     offsets = 3 * [0.4]
-        #     plot.handles['cds'].data['value'] = list(zip(data['x'], offsets))
-        #     plot.handles['x_range'].range_padding = 0.4
-
         dateformatter = DatetimeTickFormatter(days="%d %B %Y")
         plot = aggregate_1D.hvplot(
             # kind='step',
@@ -513,13 +489,6 @@ def create_1D_plot(class_label_widget, threshold_widget):
         # )
 
         lineplot_tap.source = plot
-        #BoundsX
-        # crime.hvplot.bar(x='Year', y='Violent Crime rate', rot=90)
-
-        # dateformatter = DatetimeTickFormatter(days='%d %B %Y')
-        # bin_count = int(str(active_data.data['date'].max() - active_data.data['date'].min()).split(" ")[0])
-        # plot = pd.DataFrame(active_data.data).hvplot.hist('date', hover_color = "pink", nonselection_color = "light_blue", selection_color = "red", height=580, bin_range=(pd.Timestamp(active_data.data['date'].min()), pd.Timestamp(active_data.data['date'].max())),  bins = bin_count ) # This is where the histogram is created.
-        # lineplot_tap.source = plot
         return plot
 
 
@@ -838,7 +807,7 @@ def callback_heatmap_selection(*events):
 
         datetime_range_picker.value = selection_interval
     except:
-        pass
+        logger.error("Please click inside the heatmap. This is a patch made for soundscope.")
 
 def callback_histogram_selection(*events):
     """_summary_
@@ -863,21 +832,13 @@ def callback_histogram_selection(*events):
             selection_time_initial = pd.to_datetime(events[0][2].x).date() + pd.Timedelta(days=1)
         else:
             selection_time_initial = pd.to_datetime(events[0][2].x).date()
-
-
         selection_time_final = selection_time_initial + pd.Timedelta(days=1)
         logger.debug( "selection_time_initial : " + str(selection_time_initial) )
         logger.debug( "selection_time_final : " + str(selection_time_final) )
-
         selection_interval = (selection_time_initial, selection_time_final)
         initial_datetime = selection_time_initial.strftime("%Y-%m-%d %H:%M:%S.%f")
         final_datetime = selection_time_final.strftime("%Y-%m-%d %H:%M:%S.%f")
-
         datetime_range_picker.value = selection_interval
-
-        """
-        Need to operate on active date.
-        """
     except:
         pass
 
@@ -954,9 +915,6 @@ def show_file_selector(event):
                 dataframe_explorer_widget_locked = False
 
                 show_time_zone_configuration_modal(event)
-
-                
-
             else:
                 logger.warning(
                     "The data format of the file selected is not supported. Please select a .nc file."

@@ -52,6 +52,19 @@ If you found a bug please add an entry to the [issues list](https://github.com/x
 If you want new functionalities to be added to SoundScope, add an entry to the [issues list](https://github.com/xaviermouy/SoundScope/issues) with the label "**enhancement**". Use the
 thumbs-up emoji (👍) to boost the priority of a new features.
 
+# Versions log
+
+## version 20241107
+- Upgraded to python 3.10
+- Upgraded to panel 1.5.3
+- Fixed instabilities with selections the calendar plots
+- Increased maximum allowed time offset in spectrogram to 500 seconds
+- Added time zone support
+
+## version 20241107
+- Initial release
+
+
 # Development notes
 
 This application was developed with a conda-python3.9 enviornment. The build directions are coming soon. For now refer to the Dockerfile. It utilizes the panel/holoviz library to operate on Annotation objects.  
@@ -116,11 +129,11 @@ To build and run binaires:
 
 - If using Windows Powershell:
 
-    $ pyinstaller -i  images\SoundScopeLogo.png --collect-all holoviews --collect-all param .\soundscope.py
+    $ pyinstaller -i  images\SoundScopeLogo.png --collect-all holoviews --collect-all param --collect-all distributed .\soundscope.py
 
 - If using Linux (Unstable Incomplete testing):
 
-    $ pyinstaller -i  images\SoundScopeLogo.png --collect-all holoviews --collect-all param soundscope.py
+    $ pyinstaller -i  images\SoundScopeLogo.png --collect-all holoviews --collect-all param --collect-all distributed soundscope.py
 
 3.) Copy over the images directory to the dist folder.
 
