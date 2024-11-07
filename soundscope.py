@@ -31,7 +31,8 @@ import hvplot.pandas  # Holoviews plotting library for pandas objects.
 
 import tkinter as tk
 import tkinter.filedialog as file_chooser_dialog
-
+import matplotlib
+matplotlib.use('agg')
 from bokeh.models.formatters import (
     DatetimeTickFormatter,
 )  # Bokeh datetime formatter for plotting.
@@ -51,13 +52,14 @@ import matplotlib.pyplot as plt  # Matplotlib plot object for plotting.
 from matplotlib.figure import Figure
 from matplotlib import cm
 
+
 import warnings  # Warnings library for displaying warnings.
 from loguru import logger  # A great logger option.
 import datetime
 import sounddevice as sd
-
+#from pandas.conftest import TIMEZONES
+#from panel_modal import Modal
 # Configurations
-
 
 warnings.filterwarnings("always")  # Warning configuration.
 np.random.seed(7)
@@ -66,7 +68,7 @@ np.random.seed(7)
 pn.extension(
     "tabulator", sizing_mode="stretch_width", loading_spinner="dots", notifications=True
 )  # Panel extension configuration.
-
+pn.extension("modal")
 pn.config.throttled = True  # Update only when mouse click release.
 pn.extension(
     loading_spinner="dots", loading_color="lightblue"
@@ -98,12 +100,14 @@ global spectrogram_plot_pane
 global spectrogram_metadata_explorer
 global selected_sound
 global color_map_widget_spectrogram
-
 global frame_dur_widget
 global fft_dur_widget
 global step_dur_widget
 global time_buffer_widget
 global frequency_buffer_widget
+global recordings_timezone
+global analysis_timezone
+global TZ_offset
 
 
 logger.debug("Initializing variables..")  # Log initialization of variables.
@@ -221,7 +225,7 @@ step_dur_widget = pn.widgets.FloatInput(
     name="Step (s)", value=0.01, step=0.01, start=0.001, end=10
 )
 time_buffer_widget = pn.widgets.FloatInput(
-    name="Time buffer (s)", value=2, step=1, start=0, end=10
+    name="Time buffer (s)", value=2, step=1, start=0, end=500
 )
 frequency_buffer_widget = pn.widgets.FloatInput(
     name="Frequency buffer (Hz)", value=100, step=1, start=0, end=10000
@@ -264,6 +268,7 @@ spectrogram_metadata_explorer = pn.widgets.Tabulator(
     disabled=True,
     selection=[0],
     pagination="remote",
+    page_size=50,
     show_index=False,
 )
 
@@ -273,6 +278,11 @@ datetime_range_picker = pn.widgets.DatetimeRangePicker(
 )
 dataframe_explorer_widget_locked = True
 
+def apply_time_offset(dataset, time_offset_hours):
+    dataset.data.time_min_date = dataset.data.time_min_date + pd.Timedelta(time_offset_hours, unit='h')
+    dataset.data.time_max_date = dataset.data.time_max_date + pd.Timedelta(time_offset_hours, unit='h')
+    dataset.data.date = dataset.data.date + pd.Timedelta(time_offset_hours, unit='h')
+    return dataset
 
 def load_dataset(data_file):
     """performs necessary actions to get widgets loaded and variables updated once the .nc file is selected.
@@ -285,10 +295,18 @@ def load_dataset(data_file):
     """
     logger.debug("Loading .nc file dataset.")
     global dataset  # Globally declares dataset object.
+    global recordings_timezone
+    global analysis_timezone
+    global TZ_offset
+
+    TZ_offset = analysis_timezone - recordings_timezone # time offset
     try:
         dataset = Measurement()  # Attempt at assigning a Measurement interface (Special case of Annotation object).
         dataset.from_netcdf(data_file)
         success_notification("Dataset successfully loaded!")
+        # apply time zone offset
+        dataset = apply_time_offset(dataset, TZ_offset)
+        # update class labels in widget
         update_class_label_widget()
 
     except:
@@ -297,14 +315,15 @@ def load_dataset(data_file):
                 Annotation()
             )  # Attempt at assigning a Annotation (more general purpose) interface.
             dataset.from_netcdf(data_file)
-
             success_notification("Dataset successfully loaded!")
+            # apply time zone offset
+            dataset = apply_time_offset(dataset, TZ_offset)
+            # update class labels in widget
             update_class_label_widget()
 
         except Exception as e:
             error_notification("Dataset failed to load!")
             raise e
-
 
 # Display error notifications
 def error_notification(msg_str):
@@ -333,14 +352,12 @@ def update_datetime_range_picker_widget():
     global datetime_range_picker
     datetime_range_picker.value
 
-
 # populate/update class label widget
 def update_class_label_widget():
     """Updates the class label widget with the labels from the dataset object."""
     logger.info("Updating class label widget")
     class_label_widget.options = dataset.get_labels_class()
     class_label_widget.value = class_label_widget.options[0]
-
 
 # calculate 2D aggregate of detections/annotations
 def calculate_2D_aggregates(active_data, agg_interval):
@@ -368,7 +385,6 @@ def calculate_1D_aggregates(active_data):
     if dataset is not None:
         global aggregate_1D
         aggregate_1D = active_data.calc_time_aggregate_1D(integration_time="1D")
-
 
 def update_active_data(widget_name):
     """Updates the active_data object with the settings from the widgets.
@@ -398,11 +414,9 @@ def update_active_data(widget_name):
         class_label = class_label_widget.value
 
         # Copy dataset to active data
-
         active_data = copy.deepcopy(dataset)
 
         # Filter
-
         active_data.filter(
             "confidence>=" + str(conf_threshold), inplace=True
         )  # Results are greater than or equal to.
@@ -456,6 +470,12 @@ def create_1D_plot(class_label_widget, threshold_widget):
         #                                                                                  xformatter=formatter,
         #                                                                                  width=700)
         # to fix with date format, check this => https://discourse.holoviz.org/t/workaround-for-date-based-histogram-tick-labels/788
+
+        # def hook(plot, element):
+        #     offsets = 3 * [0.4]
+        #     plot.handles['cds'].data['value'] = list(zip(data['x'], offsets))
+        #     plot.handles['x_range'].range_padding = 0.4
+
         dateformatter = DatetimeTickFormatter(days="%d %B %Y")
         plot = aggregate_1D.hvplot(
             # kind='step',
@@ -493,7 +513,7 @@ def create_1D_plot(class_label_widget, threshold_widget):
         # )
 
         lineplot_tap.source = plot
-
+        #BoundsX
         # crime.hvplot.bar(x='Year', y='Violent Crime rate', rot=90)
 
         # dateformatter = DatetimeTickFormatter(days='%d %B %Y')
@@ -670,154 +690,155 @@ def callback_heatmap_selection(*events):
     """
     Need to get an array of datetime objects for a selected day. We need the boundary conditions for the selected hour as a list or tuple.
     """
+    try:
+        selected_year = (
+            str(events[0][2].x).split("T")[0].split("-")[0]
+        )  # This will happen when histogram cell is clicked.
+        selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
+        selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
 
-    selected_year = (
-        str(events[0][2].x).split("T")[0].split("-")[0]
-    )  # This will happen when histogram cell is clicked.
-    selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
-    selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
+        selected_hour = str(events[0][2].y).split(".")[0]
+        selected_minute = str(events[0][2].y).split(".")[1]
+        base_ten_minute = float("0." + str(events[0][2].y).split(".")[1])
+        base_ten_time = float(selected_hour + "." + selected_minute)
 
-    selected_hour = str(events[0][2].y).split(".")[0]
-    selected_minute = str(events[0][2].y).split(".")[1]
-    base_ten_minute = float("0." + str(events[0][2].y).split(".")[1])
-    base_ten_time = float(selected_hour + "." + selected_minute)
+        logger.debug("selectied hour : " + str(selected_hour))
 
-    logger.debug("selectied hour : " + str(selected_hour))
+        if len(selected_hour.split("-")) > 1:  # Negative.
+            if int(selected_hour) == 0:
+                if float(base_ten_minute) < 0.5:  # Bottom of the zeroth cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        59,
+                        59,
+                        999999,
+                    )
 
-    if len(selected_hour.split("-")) > 1:  # Negative.
-        if int(selected_hour) == 0:
-            if float(base_ten_minute) < 0.5:  # Bottom of the zeroth cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    59,
-                    59,
-                    999999,
-                )
+        if len(selected_hour.split("-")) == 1:  # Positive or Zero.
+            if int(selected_hour) == 0:
+                if float(base_ten_minute) < 0.5:  # Top of the zeroth cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        59,
+                        59,
+                        999999,
+                    )
 
-    if len(selected_hour.split("-")) == 1:  # Positive or Zero.
-        if int(selected_hour) == 0:
-            if float(base_ten_minute) < 0.5:  # Top of the zeroth cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    59,
-                    59,
-                    999999,
-                )
+                if float(base_ten_minute) >= 0.5:  # Bottom of first cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour) + 1,
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour) + 1,
+                        59,
+                        59,
+                        999999,
+                    )
 
-            if float(base_ten_minute) >= 0.5:  # Bottom of first cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour) + 1,
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour) + 1,
-                    59,
-                    59,
-                    999999,
-                )
+            elif int(selected_hour) == 23:
+                if float(base_ten_minute) < 0.5:  # Bottom of selected_hour cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        59,
+                        59,
+                        999999,
+                    )
 
-        elif int(selected_hour) == 23:
-            if float(base_ten_minute) < 0.5:  # Bottom of selected_hour cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    59,
-                    59,
-                    999999,
-                )
+                if float(base_ten_minute) >= 0.5:  # Bottom of cell above.
+                    pass  # No cell is clicked
 
-            if float(base_ten_minute) >= 0.5:  # Bottom of cell above.
-                pass  # No cell is clicked
+            else:
+                if float(base_ten_minute) < 0.5:  # Bottom of selected_hour cell.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour),
+                        59,
+                        59,
+                        999999,
+                    )
 
-        else:
-            if float(base_ten_minute) < 0.5:  # Bottom of selected_hour cell.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour),
-                    59,
-                    59,
-                    999999,
-                )
+                if float(base_ten_minute) >= 0.5:  # Bottom of cell above.
+                    selection_time_initial = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour) + 1,
+                        0,
+                        0,
+                    )
+                    selection_time_final = datetime.datetime(
+                        int(selected_year),
+                        int(selected_month),
+                        int(selected_day),
+                        int(selected_hour) + 1,
+                        59,
+                        59,
+                        999999,
+                    )
 
-            if float(base_ten_minute) >= 0.5:  # Bottom of cell above.
-                selection_time_initial = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour) + 1,
-                    0,
-                    0,
-                )
-                selection_time_final = datetime.datetime(
-                    int(selected_year),
-                    int(selected_month),
-                    int(selected_day),
-                    int(selected_hour) + 1,
-                    59,
-                    59,
-                    999999,
-                )
+        logger.debug("selection_time_initial : " + str(selection_time_initial))
+        logger.debug("selection_time_final : " + str(selection_time_final))
 
-    logger.debug("selection_time_initial : " + str(selection_time_initial))
-    logger.debug("selection_time_final : " + str(selection_time_final))
+        selection_interval = (selection_time_initial, selection_time_final)
+        initial_datetime = selection_time_initial.strftime("%Y-%m-%d %H:%M:%S.%f")
+        final_datetime = selection_time_final.strftime("%Y-%m-%d %H:%M:%S.%f")
 
-    selection_interval = (selection_time_initial, selection_time_final)
-    initial_datetime = selection_time_initial.strftime("%Y-%m-%d %H:%M:%S.%f")
-    final_datetime = selection_time_final.strftime("%Y-%m-%d %H:%M:%S.%f")
+        logger.debug("datetime_interval : " + str(selection_interval))
 
-    logger.debug("datetime_interval : " + str(selection_interval))
-
-    datetime_range_picker.value = selection_interval
-
+        datetime_range_picker.value = selection_interval
+    except:
+        pass
 
 def callback_histogram_selection(*events):
     """_summary_
@@ -834,39 +855,58 @@ def callback_histogram_selection(*events):
     global final_datetime
     global datetime_range_picker
 
-    logger.debug(events)
-
-    date_broken_down = str(events[0][2].x).split()[0].split("-")
-    selected_year = date_broken_down[
-        0
-    ]  # This will happen when histogram cell is clicked.
-    selected_month = date_broken_down[1]
-    selected_day = date_broken_down[2]
-    # selected_year = str(events[0][2].x).split("T")[0].split("-")[0] # This will happen when histogram cell is clicked.
-    # selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
-    # selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
-
-    selection_time_initial = datetime.datetime(
-        int(selected_year), int(selected_month), int(selected_day), 0, 0, 0
-    )
-    selection_time_final = datetime.datetime(
-        int(selected_year), int(selected_month), int(selected_day), 23, 59, 59, 999999
-    )
-
-    # logger.debug( "selection_time_initial : " + str(selection_time_initial) )
-    # logger.debug( "selection_time_final : " + str(selection_time_final) )
-
-    selection_interval = (selection_time_initial, selection_time_final)
-    initial_datetime = selection_time_initial.strftime("%Y-%m-%d %H:%M:%S.%f")
-    final_datetime = selection_time_final.strftime("%Y-%m-%d %H:%M:%S.%f")
-
-    datetime_range_picker.value = selection_interval
-
-    """
-    Need to operate on active date.
-    """
+    try:
+        logger.debug(events)
+        # Define day selected. Since bars are center on each need to adjust teh selection if user click on the left side
+        # (i.e. first half) of the bar
+        if pd.to_datetime(events[0][2].x).hour > 12:
+            selection_time_initial = pd.to_datetime(events[0][2].x).date() + pd.Timedelta(days=1)
+        else:
+            selection_time_initial = pd.to_datetime(events[0][2].x).date()
 
 
+        selection_time_final = selection_time_initial + pd.Timedelta(days=1)
+        logger.debug( "selection_time_initial : " + str(selection_time_initial) )
+        logger.debug( "selection_time_final : " + str(selection_time_final) )
+
+        selection_interval = (selection_time_initial, selection_time_final)
+        initial_datetime = selection_time_initial.strftime("%Y-%m-%d %H:%M:%S.%f")
+        final_datetime = selection_time_final.strftime("%Y-%m-%d %H:%M:%S.%f")
+
+        datetime_range_picker.value = selection_interval
+
+        """
+        Need to operate on active date.
+        """
+    except:
+        pass
+
+def show_time_zone_configuration_modal(event):
+    template.open_modal()
+
+def close_time_zone_configuration_modal(event):
+    global data_file_name
+    global recordings_timezone
+    global analysis_timezone
+
+    # get time zones values as global variables
+    recordings_timezone = timezone_audio_recording_select.value
+    analysis_timezone = timezone_analysis_recording_select.value
+
+    load_dataset(
+        data_file_name
+    )  # Load the dataset object with the .nc file.
+    update_active_data("Initial data load event complete!")  # Update the active data object with the settings from the widgets.
+    show_datetime_range_picker()  # Show the datetime range slider.
+    # load_dataframe_explorer_widget(class_label_widget, threshold_widget, datetime_range_picker) # Load the dataframe explorer widget with the active_data object.
+
+    # Close the modal object from panel template object.
+
+    # TODO : Add the pleliminary time zone selection widget modal code here.
+    # Show the time zone configuration modal.
+    
+    template.close_modal()
+    
 def show_file_selector(event):
     """This function just opens the file explorer widget implemented as a panel modal.
 
@@ -912,14 +952,10 @@ def show_file_selector(event):
                     "Loading the selected file(s) : " + data_file_name
                 )  # Log the file path.
                 dataframe_explorer_widget_locked = False
-                load_dataset(
-                    data_file_name
-                )  # Load the dataset object with the .nc file.
-                update_active_data("Initial")
-                show_datetime_range_picker()  # Show the datetime range slider.
-                # load_dataframe_explorer_widget(class_label_widget, threshold_widget, datetime_range_picker) # Load the dataframe explorer widget with the active_data object.
 
-                template.close_modal()  # Close the modal object from panel template object.
+                show_time_zone_configuration_modal(event)
+
+                
 
             else:
                 logger.warning(
@@ -1063,8 +1099,10 @@ def spectrogram_plot(index=None):
         # Create the pandas DataFrame
         df = pd.DataFrame(data, columns=["Label", "Data"])
 
+        spectrogram_metadata_explorer.disabled = False
         spectrogram_metadata_explorer.layout = "fit_columns"
         spectrogram_metadata_explorer.value = df
+        #spectrogram_metadata_explorer.value = data_selection_df
 
         wavfilename = os.path.join(
             data_selection.audio_file_dir,
@@ -1262,7 +1300,6 @@ def click_dataframe_explorer_widget(event=None):
 
     except IndexError:
         # dataframe_explorer_widget.selection = []
-        spe
         return None
 
 
@@ -1329,13 +1366,64 @@ watcher_lineplot = lineplot_tap.param.watch(
 
 
 # Panel Template
-
+#  Adjust Modal window size
+RAW_CSS = """
+@media (min-width: 576px) {
+  .modal-dialog {
+    max-width: 600px;
+  }
+}
+"""
+timezone_img = pn.pane.Image("images/time-zone_con_by_awicon.png",width=220)
 template = pn.template.BootstrapTemplate(
-    title="SoundScope", logo="images/SoundScopeLogo.png", favicon="images/favicon.ico"
+    title="SoundScope", logo="images/SoundScopeLogo.png", favicon="images/favicon.ico",raw_css=[RAW_CSS]
 )  # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
 
+timezone_audio_recording_select = pn.widgets.Select(
+    name="Recordings time zone", options={"Select time offset from UTC": False, "-12": -12, "-11": -11, "-10": -10, "-9": -9, "-8": -8, "-7": -7, "-6": -6, "-5": -5, "-4": -4, "-3": -3, "-2": -2, "-1": -1, "0": 0, "+1": 1, "+2": 2, "+3": 3, "+4": 4, "+5": 5, "+6": 6, "+7": 7, "+8": 8, "+9": 9, "+10": 10, "+11": 11, "+12": 12, "+13": 13, "+14": 14}, width=250, height=50, margin = 15, align='center'
+)
+timezone_analysis_recording_select = pn.widgets.Select(
+        name="Analysis time zone", options={"Select time offset from UTC": False, "-12": -12, "-11": -11, "-10": -10, "-9": -9, "-8": -8, "-7": -7, "-6": -6, "-5": -5, "-4": -4, "-3": -3, "-2": -2, "-1": -1, "0": 0, "+1": 1, "+2": 2, "+3": 3, "+4": 4, "+5": 5, "+6": 6, "+7": 7, "+8": 8, "+9": 9, "+10": 10, "+11": 11, "+12": 12, "+13": 13, "+14": 14}, width=250, height=50, margin = 15, align='center'
 
-# Buttons
+)
+modal_load_button = pn.widgets.Button(name="Ok", button_type="primary", width=250, height=40, margin = 17, align='center')
+#template.modal.append("# Define time zones")
+template.modal.append(
+    pn.Column(
+"<center> <font size='6'> <b> Define time zones </b> </font> </center>",
+    pn.Row(
+    timezone_img,
+            pn.Column(
+                timezone_audio_recording_select,
+                timezone_analysis_recording_select,
+                modal_load_button,
+            ),
+    ),
+    )
+)
+
+
+# template.modal.append(
+#     pn.Row(
+#         timezone_img,
+#         pn.WidgetBox(
+#             pn.Column(
+# "# Define time zones",
+#
+#             pn.Column(
+#                 timezone_audio_recording_select,
+#                 timezone_analysis_recording_select,
+#                 modal_load_button,
+#             ),
+#         ),
+#             align='center',
+#             width=300,
+#         ),
+#     )
+# )
+
+modal_load_button.on_click(close_time_zone_configuration_modal)
+
 
 select_file_button = pn.widgets.Button(
     name="Select file", button_type="primary", sizing_mode="stretch_width"
@@ -1476,8 +1564,6 @@ template.main.append(pn.Column(top_panel_tabs, bottom_panel))
 
 # Modal
 
-# template.modal.append( file_selector ) # Appends file selector to model object.
-# template.modal.append( load_button ) # Appends load button to model object.
 select_file_button.on_click(
     show_file_selector
 )  # Defines the action of the select_file_button object which is a file selection module.
@@ -1485,8 +1571,6 @@ play_sound_button.on_click(play_selected_sound)
 # load_button.on_click( get_selection ) #
 stop_sound_button.on_click(stop_selected_sound)
 apply_spectro_settings_button.on_click(click_dataframe_explorer_widget)
-
-# template.modal[0].value = [""]
 
 display_welome_picture()
 
