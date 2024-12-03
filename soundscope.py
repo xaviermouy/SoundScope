@@ -3,8 +3,14 @@
 
 # Libraries
 import os  # For dealiing with paths and directories mostly.
+from sys import version
+
+from _version import __version__
+
 import panel as pn  # Flask like framework with a great library for modular installation of graphical components.
 import copy  # For use of deep copying. We use it in the creation of active data so that we will unhinder the original object's memory.
+
+from distributed.diagnostics.nvml import one_time
 from ecosound.core.tools import (
     filename_to_datetime,
 )  # Ecosound filename to datetime function.
@@ -26,6 +32,8 @@ import hvplot.pandas  # Holoviews plotting library for pandas objects.
 import tkinter as tk
 import tkinter.filedialog as file_chooser_dialog
 import matplotlib
+from holoviews.operation import threshold
+
 matplotlib.use('agg')
 from bokeh.models.formatters import (
     DatetimeTickFormatter,
@@ -46,11 +54,18 @@ import warnings  # Warnings library for displaying warnings.
 from loguru import logger  # A great logger option.
 import datetime
 import sounddevice as sd
+import logging
 
+
+def exception_handler(ex):
+    logging.error("Error", exc_info=ex)
+    pn.state.notifications.error('Error: %s' % ex)
+
+pn.extension(exception_handler=exception_handler, notifications=True)
 warnings.filterwarnings("always")  # Warning configuration.
 np.random.seed(7)
 pn.extension(
-    "tabulator", sizing_mode="stretch_width", loading_spinner="dots", notifications=True
+    "tabulator", sizing_mode="stretch_width", loading_spinner="dots",exception_handler=exception_handler, notifications=True
 )  # Panel extension configuration.
 pn.extension("modal")
 pn.config.throttled = True  # Update only when mouse click release.
@@ -164,6 +179,8 @@ class_label_widget = pn.widgets.Select(
     name="Class label", options=[]
 )  # Select widget object from python3 panel library. This object is a container for settings widgets. Ref : https://panel.holoviz.org/reference/widgets/Select.html
 
+analysis_timezone_text = pn.pane.Markdown("", sizing_mode='stretch_width')
+
 # Integration time
 # integration_time_widget = pn.widgets.Select(name='Integration time', options=list(time_aggregate_mapping_2D.keys()),height=70, sizing_mode='stretch_width')
 integration_time_widget = pn.widgets.Select(
@@ -177,12 +194,13 @@ integration_time_widget.value = integration_time_widget.options[0]
 
 # colormap selectro for 2D plot
 color_map_widget_plot2D = pn.widgets.ColorMap(
-    name="Colormap",
+    #name="Colormap",
     options=cmaps_plot2D,
+    align=('center'),
     ncols=1,
-    height=70,
+    height=30,
     width=250,
-    margin=(10, 10, 10, 60),
+    margin=(0, 0, 0, 20),
 )
 # color_map_widget_spectrogram = pn.widgets.ColorMap(options = cmaps_plot2D, ncols=1, height=50, width = 200, margin = (30,10,10,10))
 color_map_widget_spectrogram = pn.widgets.ColorMap(
@@ -259,6 +277,13 @@ datetime_range_picker = pn.widgets.DatetimeRangePicker(
 )
 dataframe_explorer_widget_locked = True
 
+def update_analysis_timezone_text(analysis_timezone):
+    #analysis_timezone_text.object = f"Time zone of analysis: UTC {analysis_timezone}"
+    #analysis_timezone_text.object =r"<p style = 'text-align:right;'>Time zone of analysis: UTC " + str(analysis_timezone) + "</p>"
+    analysis_timezone_text.object = r"<p style = 'text-align:right;'><font size=3px'>Time zone of analysis: UTC " + str(analysis_timezone) + "</font color></p>"
+    #analysis_timezone_text.object = "<right># Time zone of analysis: UTC " + str(analysis_timezone) + "</right>"
+
+
 def apply_time_offset(dataset, time_offset_hours):
     dataset.data.time_min_date = dataset.data.time_min_date + pd.Timedelta(time_offset_hours, unit='h')
     dataset.data.time_max_date = dataset.data.time_max_date + pd.Timedelta(time_offset_hours, unit='h')
@@ -301,6 +326,8 @@ def load_dataset(data_file):
             dataset = apply_time_offset(dataset, TZ_offset)
             # update class labels in widget
             update_class_label_widget()
+            # update text with analysis time zone
+            update_analysis_timezone_text(analysis_timezone)
 
         except Exception as e:
             error_notification("Dataset failed to load!")
@@ -867,7 +894,24 @@ def close_time_zone_configuration_modal(event):
     # Show the time zone configuration modal.
     
     template.close_modal()
-    
+
+def show_save_file_dialog(filename=None, extension=None):
+    """This function just opens the file explorer widget implemented as a panel modal.
+
+    Args:
+        event (_type_): _description_
+    """
+    settings_widgetbox.disabled = False
+    root = tk.Tk()
+    root.withdraw()
+    root.call("wm", "attributes", ".", "-topmost", True)
+    outfilename = tk.filedialog.asksaveasfilename(
+        confirmoverwrite=True,
+        initialfile=filename,
+        #defaultextension=extension,
+    )
+    return outfilename
+
 def show_file_selector(event):
     """This function just opens the file explorer widget implemented as a panel modal.
 
@@ -1059,7 +1103,11 @@ def spectrogram_plot(index=None):
 
         spectrogram_metadata_explorer.disabled = False
         spectrogram_metadata_explorer.layout = "fit_columns"
-        spectrogram_metadata_explorer.value = df
+        try:
+            spectrogram_metadata_explorer.value = df
+        except:
+            spectrogram_metadata_explorer.value = df
+
         #spectrogram_metadata_explorer.value = data_selection_df
 
         wavfilename = os.path.join(
@@ -1260,6 +1308,65 @@ def click_dataframe_explorer_widget(event=None):
         # dataframe_explorer_widget.selection = []
         return None
 
+def save_hourly_csv_file(event=None):
+    filename = show_save_file_dialog(filename='hourly_detection_summary.csv', extension='.csv')
+    aggregate_1H = active_data.calc_time_aggregate_1D(integration_time='1H')
+    start_time_an = aggregate_1H.index
+    end_time_an = start_time_an + pd.Timedelta(1,unit='h')
+    start_time_rec = start_time_an - pd.Timedelta(TZ_offset,unit='h')
+    end_time_rec = start_time_rec + pd.Timedelta(1,unit='h')
+    n_detections = list(aggregate_1H.values[:,0])
+
+    df = pd.DataFrame({'Start time (recordings time zone)':start_time_rec,
+                       'End time (recordings time zone)': end_time_rec,
+                       'Start time (analysis time zone)': start_time_an,
+                       'End time (analysis time zone)': end_time_an,
+                       'Number of detections': n_detections,
+                       })
+    df["Manual_Review"] = ""
+    df["Comments"] = ""
+    version = 0.1
+    preamble1 = f"SoundScope version: {__version__} \n"
+    preamble2 = f"Originator: {os.getlogin()} \n"
+    preamble3 = f"Creation date: {datetime.datetime.now().strftime('%Y%m%dT%H%M%S')} \n"
+    preamble4 = f"Time zone of recordings: UTC{recordings_timezone} \n"
+    preamble5 = f"Time zone of analysis: UTC{analysis_timezone} \n"
+    preamble6 = f"Confidence threshold: {threshold_widget.value} \n"
+    preamble7 = f"Class label: {class_label_widget.value} \n"
+    preamble = preamble1+preamble2+preamble3+preamble4+preamble5+preamble6+preamble7
+    with open(filename, 'w') as f:
+        f.write(preamble)
+        df.to_csv(f, date_format='%Y%m%dT%H%M%S',index=False,lineterminator='\n')
+    success_notification("CSV file saved")
+
+def save_daily_csv_file(event=None):
+    filename = show_save_file_dialog(filename='daily_detection_summary.csv', extension='.csv')
+    #aggregate_1H = active_data.calc_time_aggregate_1D(integration_time='1H')
+    start_time_an = aggregate_1D.index
+    end_time_an = start_time_an + pd.Timedelta(24,unit='h')
+    start_time_rec = start_time_an - pd.Timedelta(TZ_offset,unit='h')
+    end_time_rec = start_time_rec + pd.Timedelta(24,unit='h')
+    n_detections = list(aggregate_1D.values[:,0])
+    df = pd.DataFrame({'Start time (recordings time zone)':start_time_rec,
+                       'End time (recordings time zone)': end_time_rec,
+                       'Start time (analysis time zone)': start_time_an,
+                       'End time (analysis time zone)': end_time_an,
+                       'Number of detections': n_detections,
+                       })
+    df["Manual_Review"] = ""
+    df["Comments"] = ""
+    preamble1 = f"SoundScope version: {__version__} \n"
+    preamble2 = f"Originator: {os.getlogin()} \n"
+    preamble3 = f"Creation date: {datetime.datetime.now().strftime('%Y%m%dT%H%M%S')} \n"
+    preamble4 = f"Time zone of recordings: UTC{recordings_timezone} \n"
+    preamble5 = f"Time zone of analysis: UTC{analysis_timezone} \n"
+    preamble6 = f"Confidence threshold: {threshold_widget.value} \n"
+    preamble7 = f"Class label: {class_label_widget.value} \n"
+    preamble = preamble1+preamble2+preamble3+preamble4+preamble5+preamble6+preamble7
+    with open(filename, 'w') as f:
+        f.write(preamble)
+        df.to_csv(f, date_format='%Y%m%dT%H%M%S',index=False,lineterminator='\n')
+    success_notification("CSV file saved")
 
 def play_selected_sound(event):
     global selected_sound
@@ -1273,6 +1380,14 @@ def play_selected_sound(event):
     else:
         pass
 
+def download_selected_sound(event):
+    #global selected_sound
+    filename_tmp = class_label_widget.value + '_' + selected_sound.file_name + '_chan-' + str(selected_sound.channel_selected) + '_deltatime-' + str(
+        round(selected_sound.waveform_start_sample / selected_sound.waveform_sampling_frequency, 3))+'.wav'
+    filename = show_save_file_dialog(filename=filename_tmp, extension='.wav')
+    selected_sound._waveform = selected_sound.waveform / max(selected_sound.waveform)
+    selected_sound.write(filename)
+    success_notification('Audio clip saved successfully')
 
 def stop_selected_sound(event=None):
     try:
@@ -1404,6 +1519,35 @@ stop_sound_button = pn.widgets.Button(
     width=50,
     height=50,
 )
+download_sound_button = pn.widgets.Button(
+    icon="download",
+    name="Download",
+    button_type="primary",
+    icon_size="2em",
+    width=50,
+    height=50,
+)
+
+download_csv_hourly_button = pn.widgets.Button(
+    icon="file-type-csv",
+    button_style='outline',
+    name="",
+    button_type="light",
+    align=('end','end'),
+    icon_size="2em",
+    width=20,
+    #height=20,
+)
+download_csv_daily_button = pn.widgets.Button(
+    icon="file-type-csv",
+    button_style='outline',
+    name="",
+    button_type="light",
+    align=('end','end'),
+    icon_size="2em",
+    width=20,
+    #height=20,
+)
 
 apply_spectro_settings_button = pn.widgets.Button(
     name="Apply", button_type="primary"
@@ -1451,7 +1595,7 @@ detec_files_multi_select = pn.widgets.MultiSelect(
 )
 file_name_markdown = pn.pane.Markdown("", width=100)
 
-
+#analysis_timezone_text = pn.pane.Markdown(f"Time zone of analysis: UTC {analysis_timezone} ", sizing_mode='stretch_width')
 # Side panel
 template.sidebar.append(
     pn.Column(openfile_widgetbox, accordion)
@@ -1464,7 +1608,8 @@ top_panel_tabs = pn.Tabs(
         "Hourly Detections",
         pn.WidgetBox(
             pn.Column(
-                pn.Row(color_map_widget_plot2D, integration_time_widget), create_2D_plot
+                #pn.Row(color_map_widget_plot2D, integration_time_widget, download_csv_hourly_button), create_2D_plot
+                pn.Row(download_csv_hourly_button,color_map_widget_plot2D,analysis_timezone_text,align=('end','end')), create_2D_plot
             ),
             disabled=False,
             margin=(10, 10),
@@ -1476,7 +1621,12 @@ top_panel_tabs.append(
     (
         "Daily Detections",
         pn.WidgetBox(
-            create_1D_plot, disabled=False, margin=(10, 10), sizing_mode="stretch_width"
+            pn.Column(
+                pn.Row( download_csv_daily_button,analysis_timezone_text), create_1D_plot
+            ),
+            disabled=False,
+            margin=(10, 10),
+            sizing_mode="stretch_width",
         ),
     )
 )  # This is one place active data is updated.
@@ -1487,7 +1637,7 @@ spectrogram_tabs = pn.Tabs(
         "Spectrogram",
         pn.WidgetBox(
             pn.Column(
-                spectrogram_plot_pane, pn.Row(play_sound_button, stop_sound_button)
+                spectrogram_plot_pane, pn.Row(play_sound_button, stop_sound_button,download_sound_button)
             ),
             disabled=False,
             margin=(10, 10),
@@ -1522,12 +1672,16 @@ template.main.append(pn.Column(top_panel_tabs, bottom_panel))
 
 # Modal
 
+download_csv_hourly_button.on_click(save_hourly_csv_file)  #
+download_csv_daily_button.on_click(save_daily_csv_file)  #
+
 select_file_button.on_click(
     show_file_selector
 )  # Defines the action of the select_file_button object which is a file selection module.
 play_sound_button.on_click(play_selected_sound)
 # load_button.on_click( get_selection ) #
 stop_sound_button.on_click(stop_selected_sound)
+download_sound_button.on_click(download_selected_sound)
 apply_spectro_settings_button.on_click(click_dataframe_explorer_widget)
 
 display_welome_picture()
