@@ -16,7 +16,7 @@ SoundScope is still under heavy development. Please don't hesitate to reach out 
 There are 2 ways to use SoundScope:
 
 ### Download the latest binary 
-This is the easiest way as it does not require to install anything. The binaries are uploaded in this Google folder: [SoundScope binaries](https://drive.google.com/drive/folders/1QbgE7wPl62MbmT1tnLElolxzb44AaAhy?usp=sharing)
+This is the easiest way as it does not require to install anything. The binaries are uploaded in this Google folder: [SoundScope binaries](https://whoi-my.sharepoint.com/:f:/g/personal/xavier_mouy_whoi_edu/EtRGhOyVbSJMiLBs0DetDyEBRdaVMQP_BdA4Yoeb_if65w?e=WdTdzE)
 Download the latest zip file, unzip it, and double click on soundscope.exe to launch the application.
 
 ### Clone the Github repository
@@ -53,6 +53,11 @@ If you want new functionalities to be added to SoundScope, add an entry to the [
 thumbs-up emoji (👍) to boost the priority of a new features.
 
 # Versions
+
+### version 20250122
+- Improved loading time for spectrograms
+- Added loading spinner for the spectrogram calculation
+- Added breakdown of spectrogram creation/loading times in the command window to help identify possible bottlenecks.
 
 ### version 20241202
 - Added capability to download daily and hourly detection summary as csv file (issue #14)
@@ -107,7 +112,7 @@ In a terminal change to current directory to the sounscope folder using the cd c
 
 or 
 
-   $ pyinstaller  .\soundscope.spec
+   $ pyinstaller .\soundscope.spec
 
 3.) Copy over the images directory to the dist folder.
 

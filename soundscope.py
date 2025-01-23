@@ -2,9 +2,9 @@
 # coding: utf-8
 
 # Libraries
+import time
 import os  # For dealiing with paths and directories mostly.
 from sys import version
-
 from _version import __version__
 
 import panel as pn  # Flask like framework with a great library for modular installation of graphical components.
@@ -55,7 +55,7 @@ from loguru import logger  # A great logger option.
 import datetime
 import sounddevice as sd
 import logging
-
+from inspect import getmembers, isclass
 
 def exception_handler(ex):
     logging.error("Error", exc_info=ex)
@@ -165,6 +165,9 @@ aggregate_2D = aggregate_2D.fillna(
 
 
 # Widgets
+global spectro_loading_spinner
+spectro_loading_spinner = pn.indicators.LoadingSpinner(value=False, height=50, name=' ')
+spectro_loading_spinner.visible=False
 audio_files_multi_select = pn.widgets.MultiSelect(
     name="Audio files", value=[], options=[], size=8
 )  # Audio files widget object from python3 panel library. This object is a container for audio files. Ref : https://panel.holoviz.org/reference/widgets/MultiSelect.html
@@ -257,9 +260,8 @@ dataframe_explorer_widget = pn.widgets.Tabulator(
     selection=[0],
     pagination="remote",
 )
-spectrogram_plot_pane = pn.pane.Matplotlib(
-    name="Spectrogram", fixed_aspect=False, height=565
-)
+#spectrogram_plot_pane = pn.pane.Matplotlib(name="Spectrogram", fixed_aspect=False, height=565,dpi=80)
+spectrogram_plot_pane = pn.pane.PNG('images/SoundScopeWelcome.png',height=565,)
 spectrogram_metadata_explorer = pn.widgets.Tabulator(
     name="Metadata",
     sizing_mode="stretch_width",
@@ -276,6 +278,118 @@ datetime_range_picker = pn.widgets.DatetimeRangePicker(
     name="Datetime Range Selection", sizing_mode="stretch_width"
 )
 dataframe_explorer_widget_locked = True
+
+def rasterize_and_save(fname, rasterize_list=None, fig=None, dpi=None,
+                       savefig_kw={}):
+    """Save a figure with raster and vector components
+    This function lets you specify which objects to rasterize at the export
+    stage, rather than within each plotting call. Rasterizing certain
+    components of a complex figure can significantly reduce file size.
+    https://brushingupscience.wordpress.com/2017/05/09/vector-and-raster-in-one-with-matplotlib/
+    Inputs
+    ------
+    fname : str
+        Output filename with extension
+    rasterize_list : list (or object)
+        List of objects to rasterize (or a single object to rasterize)
+    fig : matplotlib figure object
+        Defaults to current figure
+    dpi : int
+        Resolution (dots per inch) for rasterizing
+    savefig_kw : dict
+        Extra keywords to pass to matplotlib.pyplot.savefig
+    If rasterize_list is not specified, then all contour, pcolor, and
+    collects objects (e.g., ``scatter, fill_between`` etc) will be
+    rasterized
+    Note: does not work correctly with round=True in Basemap
+    Example
+    -------
+    Rasterize the contour, pcolor, and scatter plots, but not the line
+    >>> import matplotlib.pyplot as plt
+    >>> from numpy.random import random
+    >>> X, Y, Z = random((9, 9)), random((9, 9)), random((9, 9))
+    >>> fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(ncols=2, nrows=2)
+    >>> cax1 = ax1.contourf(Z)
+    >>> cax2 = ax2.scatter(X, Y, s=Z)
+    >>> cax3 = ax3.pcolormesh(Z)
+    >>> cax4 = ax4.plot(Z[:, 0])
+    >>> rasterize_list = [cax1, cax2, cax3]
+    >>> rasterize_and_save('out.svg', rasterize_list, fig=fig, dpi=300)
+    """
+
+    # Behave like pyplot and act on current figure if no figure is specified
+    fig = plt.gcf() if fig is None else fig
+
+    # Need to set_rasterization_zorder in order for rasterizing to work
+    zorder = -5  # Somewhat arbitrary, just ensuring less than 0
+
+    if rasterize_list is None:
+        # Have a guess at stuff that should be rasterised
+        types_to_raster = ['QuadMesh', 'Contour', 'collections']
+        rasterize_list = []
+
+        print("""
+        No rasterize_list specified, so the following objects will
+        be rasterized: """)
+        # Get all axes, and then get objects within axes
+        for ax in fig.get_axes():
+            for item in ax.get_children():
+                if any(x in str(item) for x in types_to_raster):
+                    rasterize_list.append(item)
+        print('\n'.join([str(x) for x in rasterize_list]))
+    else:
+        # Allow rasterize_list to be input as an object to rasterize
+        if type(rasterize_list) != list:
+            rasterize_list = [rasterize_list]
+
+    for item in rasterize_list:
+
+        # Whether or not plot is a contour plot is important
+        is_contour = (isinstance(item, matplotlib.contour.QuadContourSet) or
+                      isinstance(item, matplotlib.tri.TriContourSet))
+
+        # Whether or not collection of lines
+        # This is commented as we seldom want to rasterize lines
+        # is_lines = isinstance(item, matplotlib.collections.LineCollection)
+
+        # Whether or not current item is list of patches
+        all_patch_types = tuple(
+            x[1] for x in getmembers(matplotlib.patches, isclass))
+        try:
+            is_patch_list = isinstance(item[0], all_patch_types)
+        except TypeError:
+            is_patch_list = False
+
+        # Convert to rasterized mode and then change zorder properties
+        if is_contour:
+            curr_ax = item.ax.axes
+            curr_ax.set_rasterization_zorder(zorder)
+            # For contour plots, need to set each part of the contour
+            # collection individually
+            for contour_level in item.collections:
+                contour_level.set_zorder(zorder - 1)
+                contour_level.set_rasterized(True)
+        elif is_patch_list:
+            # For list of patches, need to set zorder for each patch
+            for patch in item:
+                curr_ax = patch.axes
+                curr_ax.set_rasterization_zorder(zorder)
+                patch.set_zorder(zorder - 1)
+                patch.set_rasterized(True)
+        else:
+            # For all other objects, we can just do it all at once
+            curr_ax = item.axes
+            curr_ax.set_rasterization_zorder(zorder)
+            item.set_rasterized(True)
+            item.set_zorder(zorder - 1)
+
+    # dpi is a savefig keyword argument, but treat it as special since it is
+    # important to this function
+    if dpi is not None:
+        savefig_kw['dpi'] = dpi
+
+    # Save resulting figure
+    fig.savefig(fname, **savefig_kw)
 
 def update_analysis_timezone_text(analysis_timezone):
     #analysis_timezone_text.object = f"Time zone of analysis: UTC {analysis_timezone}"
@@ -996,6 +1110,7 @@ def display_welome_picture():
 
 
 # Spectrogram
+#@pn.io.profile('Spectrogram', engine='snakeviz')
 def spectrogram_plot(index=None):
     """The purpose of this function is to load the spectrogram plot pane. The plot depends on the index and play_sound widgets for interactivity.
 
@@ -1009,6 +1124,11 @@ def spectrogram_plot(index=None):
     logger.debug(
         "Loading spectrogram plot"
     )  # Log event of a spectrogram plot being loaded.
+    spectro_loading_spinner.value=True
+    spectro_loading_spinner.name = 'Calculating spectrogram...'
+    spectro_loading_spinner.visible=True
+    # debug
+    start_time = time.perf_counter()
 
     global spectrogram_plot_pane  # Global variable for the spectrogram plot pane.
     global spectrogram_metadata_explorer
@@ -1119,6 +1239,14 @@ def spectrogram_plot(index=None):
         t1 = data_selection.time_min_offset - time_buffer
         t2 = data_selection.time_max_offset + time_buffer
 
+        # debug
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print(f"Elapsed time spectro init: {elapsed_time:.2f} seconds")
+
+        # debug
+        start_time = time.perf_counter()
+
         # load audio data
         sound = Sound(wavfilename)
         selected_sound = sound
@@ -1135,6 +1263,14 @@ def spectrogram_plot(index=None):
             detrend=True,
         )
 
+        # debug
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print(f"Elapsed time load data: {elapsed_time:.2f} seconds")
+
+        # debug
+        start_time = time.perf_counter()
+
         spectro = Spectrogram(
             frame,
             window_type,
@@ -1144,6 +1280,11 @@ def spectrogram_plot(index=None):
             unit="sec",
         )
         spectro.compute(sound, dB=True, use_dask=False, dask_chunks=40)
+
+        # debug
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print(f"Elapsed time compute spectro: {elapsed_time:.2f} seconds")
 
         annot = Annotation()  # Create an Annotation object.
         annot.data = pd.concat(
@@ -1161,6 +1302,9 @@ def spectrogram_plot(index=None):
             ],
             ignore_index=True,
         )  # Concatenate the Annotation object with a pandas dataframe object.
+
+        # debug
+        start_time = time.perf_counter()
 
         # Plot
         fmax = data_selection.frequency_max + frequency_buffer
@@ -1184,17 +1328,64 @@ def spectrogram_plot(index=None):
 
         graph.colormap = color_map_widget_spectrogram.value_name
 
-        fig, ax = graph.show(display=False)  # Create a figure and axes object.
-        fig.set_size_inches(14, 8)  # Set the size of the figure.
+        fig, ax = graph.show(display=False)
 
+        # debug
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print(f"Elapsed time create spectro plot: {elapsed_time:.2f} seconds")
+
+        # debug
+        start_time = time.perf_counter()
+        filename='selection_spectro' + '.jpg'
+        #rasterize_and_save(filename,[ax], fig=fig, dpi=100)
+        ax.set_rasterized(True)
+        ax.set_rasterization_zorder(0)
+        fig.savefig(
+            filename,
+            transparent=False,
+            bbox_inches="tight",
+            dpi=100,
+        )
+        # debug
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print(f"Elapsed time saving spectro plot to png: {elapsed_time:.2f} seconds")
+
+        #graph.to_file('test' + ".png")
+
+        #fig, ax = graph.show(display=False)  # Create a figure and axes object.
+        #fig.set_size_inches(14, 8)  # Set the size of the figure.
+
+        # # debug
+        # end_time = time.perf_counter()
+        # elapsed_time = end_time - start_time
+        # print(f"Elapsed time create spectro plot: {elapsed_time:.2f} seconds")
+
+        # debug
+        start_time = time.perf_counter()
+
+        #spectrogram_plot_pane.param.trigger("object")
+        #spectrogram_plot_pane.object = fig
+        spectrogram_plot_pane.object = 'selection_spectro.jpg'
         spectrogram_plot_pane.param.trigger("object")
-        spectrogram_plot_pane.object = fig
+
+        # debug
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print(f"Elapsed time display spectro: {elapsed_time:.2f} seconds")
+        spectro_loading_spinner.value = False
+        spectro_loading_spinner.name = ''
+        spectro_loading_spinner.visible=False
 
     else:
         pass
         # spectrogram_plot_pane.param.trigger("object")
         # spectrogram_plot_pane.object = test_matplotlib()
-        # return spectrogram_plot_pane
+        # return
+        spectro_loading_spinner.value = False
+        spectro_loading_spinner.name = ''
+        spectro_loading_spinner.visible=False
 
 
 def test_matplotlib():
@@ -1637,7 +1828,7 @@ spectrogram_tabs = pn.Tabs(
         "Spectrogram",
         pn.WidgetBox(
             pn.Column(
-                spectrogram_plot_pane, pn.Row(play_sound_button, stop_sound_button,download_sound_button)
+                spectrogram_plot_pane, pn.Row(play_sound_button, stop_sound_button,download_sound_button,pn.Spacer(styles=dict(background='white'), width=50),spectro_loading_spinner)
             ),
             disabled=False,
             margin=(10, 10),
@@ -1684,7 +1875,7 @@ stop_sound_button.on_click(stop_selected_sound)
 download_sound_button.on_click(download_selected_sound)
 apply_spectro_settings_button.on_click(click_dataframe_explorer_widget)
 
-display_welome_picture()
+#display_welome_picture()
 
 # Serve Application
 
