@@ -59,7 +59,7 @@ from inspect import getmembers, isclass
 
 def exception_handler(ex):
     logging.error("Error", exc_info=ex)
-    pn.state.notifications.error('Error: %s' % ex)
+    #pn.state.notifications.error('Error: %s' % ex)
 
 pn.extension(exception_handler=exception_handler, notifications=True)
 warnings.filterwarnings("always")  # Warning configuration.
@@ -435,7 +435,7 @@ def load_dataset(data_file):
                 Annotation()
             )  # Attempt at assigning a Annotation (more general purpose) interface.
             dataset.from_netcdf(data_file)
-            success_notification("Dataset successfully loaded!")
+            success_notification("Dataset loaded!")
             # apply time zone offset
             dataset = apply_time_offset(dataset, TZ_offset)
             # update class labels in widget
