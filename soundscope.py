@@ -1010,19 +1010,29 @@ def close_time_zone_configuration_modal(event):
     template.close_modal()
 
 def show_save_file_dialog(filename=None, extension=None):
-    """This function just opens the file explorer widget implemented as a panel modal.
+    """This function opens a file save dialog using tkinter.
 
     Args:
-        event (_type_): _description_
+        filename (str, optional): Suggested filename for the save dialog.
+        extension (str, optional): Default file extension (e.g., '.csv').
+
+    Returns:
+        str: The selected file path, or None if the dialog is canceled.
     """
     settings_widgetbox.disabled = False
     root = tk.Tk()
     root.withdraw()
     root.call("wm", "attributes", ".", "-topmost", True)
+
+    # Ensure the extension starts with a dot
+    if extension and not extension.startswith("."):
+        extension = f".{extension}"
+
     outfilename = tk.filedialog.asksaveasfilename(
         confirmoverwrite=True,
         initialfile=filename,
-        #defaultextension=extension,
+        defaultextension=extension,  # Automatically appends the extension
+        filetypes=[(f"{extension.upper()} Files", f"*{extension}"), ("All Files", "*.*")],
     )
     return outfilename
 
