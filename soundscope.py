@@ -1021,10 +1021,16 @@ def show_save_file_dialog(filename=None, extension=None):
     root = tk.Tk()
     root.withdraw()
     root.call("wm", "attributes", ".", "-topmost", True)
+
+    # Ensure the extension starts with a dot
+    if extension and not extension.startswith("."):
+        extension = f".{extension}"
+
     outfilename = tk.filedialog.asksaveasfilename(
         confirmoverwrite=True,
         initialfile=filename,
-        #defaultextension=extension,
+        defaultextension=extension,  # Automatically appends the extension
+        filetypes=[(f"{extension.upper()} Files", f"*{extension}"), ("All Files", "*.*")],
     )
     return outfilename
 
@@ -1340,7 +1346,7 @@ def spectrogram_plot(index=None):
         # debug
         start_time = time.perf_counter()
         filename='selection_spectro' + '.jpg'
-        #rasterize_and_save(filename,[ax], fig=fig, dpi=100)
+        rasterize_and_save(filename,[ax], fig=fig, dpi=100)
         # ax.set_rasterized(True)
         # ax.set_rasterization_zorder(0)
         # #plt.draw()
