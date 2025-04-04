@@ -17,7 +17,7 @@ from distributed.diagnostics.nvml import one_time
 
 
 # Following code predated ecosound integration. Keep it here a while defore deleting.
-""" from ecosound.core.tools import (
+from ecosound.core.tools import (
     filename_to_datetime,
 )  # Ecosound filename to datetime function.
 from ecosound.core.measurement import (
@@ -30,14 +30,7 @@ from ecosound.visualization.grapher_builder import (
     GrapherFactory,
 )  # Ecosound GrapherFactory class object.
 
- """
 
-from libs.ecosound.ecosound.core.tools import filename_to_datetime
-from libs.ecosound.ecosound.core.measurement import Measurement
-from libs.ecosound.ecosound.core.annotation import Annotation
-from libs.ecosound.ecosound.core.audiotools import Sound
-from libs.ecosound.ecosound.core.spectrogram import Spectrogram
-from libs.ecosound.ecosound.visualization.grapher_builder import GrapherFactory
 
 
 # from dask.distributed import Client # Dask distributed client for parallel computing.
