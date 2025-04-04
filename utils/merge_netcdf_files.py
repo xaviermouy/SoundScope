@@ -15,7 +15,7 @@ import os
 
 
 # Load all netCDF files
-detec_files_dir =r'C:\Users\xavier.mouy\Desktop\test'
+detec_files_dir =r'C:\Users\xavier.mouy\Documents\Projects\2025_Galapagos\processing_outputs\WHOI_Galapagos_202305_Caseta\6478\fishsoundfinder'
 print('Loading all .nc files in detec_files_dir')
 detec = Annotation()
 detec.from_netcdf(detec_files_dir, verbose=True)

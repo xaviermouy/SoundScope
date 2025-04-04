@@ -6,7 +6,9 @@ import time
 import os  # For dealiing with paths and directories mostly.
 from sys import version
 from _version import __version__
-
+import cv2
+import numpy as np
+import pytz
 import panel as pn  # Flask like framework with a great library for modular installation of graphical components.
 import copy  # For use of deep copying. We use it in the creation of active data so that we will unhinder the original object's memory.
 
@@ -59,7 +61,7 @@ from inspect import getmembers, isclass
 
 def exception_handler(ex):
     logging.error("Error", exc_info=ex)
-    #pn.state.notifications.error('Error: %s' % ex)
+    pn.state.notifications.error('Error: %s' % ex)
 
 pn.extension(exception_handler=exception_handler, notifications=True)
 warnings.filterwarnings("always")  # Warning configuration.
@@ -435,7 +437,7 @@ def load_dataset(data_file):
                 Annotation()
             )  # Attempt at assigning a Annotation (more general purpose) interface.
             dataset.from_netcdf(data_file)
-            success_notification("Dataset loaded!")
+            success_notification("Dataset successfully loaded!")
             # apply time zone offset
             dataset = apply_time_offset(dataset, TZ_offset)
             # update class labels in widget
@@ -1349,14 +1351,19 @@ def spectrogram_plot(index=None):
         start_time = time.perf_counter()
         filename='selection_spectro' + '.jpg'
         #rasterize_and_save(filename,[ax], fig=fig, dpi=100)
-        ax.set_rasterized(True)
-        ax.set_rasterization_zorder(0)
-        fig.savefig(
-            filename,
-            transparent=False,
-            bbox_inches="tight",
-            dpi=100,
-        )
+        # ax.set_rasterized(True)
+        # ax.set_rasterization_zorder(0)
+        # #plt.draw()
+        # fig.savefig(
+        #     filename,
+        #     transparent=False,
+        #     bbox_inches="tight",
+        #     dpi=100,
+        # )
+        fig.canvas.draw()
+        image = np.array(fig.canvas.renderer.buffer_rgba())
+        cv2.imwrite(filename, cv2.cvtColor(image, cv2.COLOR_RGBA2BGR))
+
         # debug
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
@@ -1518,6 +1525,14 @@ def save_hourly_csv_file(event=None):
     end_time_rec = start_time_rec + pd.Timedelta(1,unit='h')
     n_detections = list(aggregate_1H.values[:,0])
 
+    # add time zones
+    offset_an = pytz.FixedOffset(analysis_timezone * 60)
+    offset_rec = pytz.FixedOffset(recordings_timezone * 60)
+    start_time_an = start_time_an.tz_localize(offset_an)
+    end_time_an = end_time_an.tz_localize(offset_an)
+    start_time_rec = start_time_rec.tz_localize(offset_rec)
+    end_time_rec = end_time_rec.tz_localize(offset_rec)
+
     df = pd.DataFrame({'Start time (recordings time zone)':start_time_rec,
                        'End time (recordings time zone)': end_time_rec,
                        'Start time (analysis time zone)': start_time_an,
@@ -1526,7 +1541,6 @@ def save_hourly_csv_file(event=None):
                        })
     df["Manual_Review"] = ""
     df["Comments"] = ""
-    version = 0.1
     preamble1 = f"SoundScope version: {__version__} \n"
     preamble2 = f"Originator: {os.getlogin()} \n"
     preamble3 = f"Creation date: {datetime.datetime.now().strftime('%Y%m%dT%H%M%S')} \n"
@@ -1537,7 +1551,7 @@ def save_hourly_csv_file(event=None):
     preamble = preamble1+preamble2+preamble3+preamble4+preamble5+preamble6+preamble7
     with open(filename, 'w') as f:
         f.write(preamble)
-        df.to_csv(f, date_format='%Y%m%dT%H%M%S',index=False,lineterminator='\n')
+        df.to_csv(f, date_format='%Y%m%dT%H%M%S%z',index=False,lineterminator='\n')
     success_notification("CSV file saved")
 
 def save_daily_csv_file(event=None):
@@ -1548,6 +1562,15 @@ def save_daily_csv_file(event=None):
     start_time_rec = start_time_an - pd.Timedelta(TZ_offset,unit='h')
     end_time_rec = start_time_rec + pd.Timedelta(24,unit='h')
     n_detections = list(aggregate_1D.values[:,0])
+
+    # add time zones
+    offset_an = pytz.FixedOffset(analysis_timezone * 60)
+    offset_rec = pytz.FixedOffset(recordings_timezone * 60)
+    start_time_an = start_time_an.tz_localize(offset_an)
+    end_time_an = end_time_an.tz_localize(offset_an)
+    start_time_rec = start_time_rec.tz_localize(offset_rec)
+    end_time_rec = end_time_rec.tz_localize(offset_rec)
+
     df = pd.DataFrame({'Start time (recordings time zone)':start_time_rec,
                        'End time (recordings time zone)': end_time_rec,
                        'Start time (analysis time zone)': start_time_an,
@@ -1566,7 +1589,7 @@ def save_daily_csv_file(event=None):
     preamble = preamble1+preamble2+preamble3+preamble4+preamble5+preamble6+preamble7
     with open(filename, 'w') as f:
         f.write(preamble)
-        df.to_csv(f, date_format='%Y%m%dT%H%M%S',index=False,lineterminator='\n')
+        df.to_csv(f, date_format='%Y%m%dT%H%M%S%z',index=False,lineterminator='\n')
     success_notification("CSV file saved")
 
 def play_selected_sound(event):
