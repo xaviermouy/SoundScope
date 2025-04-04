@@ -54,6 +54,10 @@ thumbs-up emoji (👍) to boost the priority of a new features.
 
 # Versions
 
+### version 20250404
+- Enforced including files extensions when saving csv or wav files
+- Dates and times in the exported csv now follwoing ISO 8601 standard with time zone designator.
+
 ### version 20250122
 - Improved loading time for spectrograms
 - Added loading spinner for the spectrogram calculation
