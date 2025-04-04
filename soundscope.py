@@ -13,6 +13,10 @@ import panel as pn  # Flask like framework with a great library for modular inst
 import copy  # For use of deep copying. We use it in the creation of active data so that we will unhinder the original object's memory.
 
 from distributed.diagnostics.nvml import one_time
+
+
+
+# Following code predated ecosound integration. Keep it here a while defore deleting.
 from ecosound.core.tools import (
     filename_to_datetime,
 )  # Ecosound filename to datetime function.
@@ -25,6 +29,10 @@ from ecosound.core.spectrogram import Spectrogram  # Ecosound Spectrogram class 
 from ecosound.visualization.grapher_builder import (
     GrapherFactory,
 )  # Ecosound GrapherFactory class object.
+
+
+
+
 # from dask.distributed import Client # Dask distributed client for parallel computing.
 import numpy as np  # Numpy library for numerical manipulation in python3.
 import pandas as pd  # Pandas library for dataframe objects.
