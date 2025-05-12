@@ -53,6 +53,13 @@ If you want new functionalities to be added to SoundScope, add an entry to the [
 thumbs-up emoji (👍) to boost the priority of a new features.
 
 # Versions
+### version 20250511
+- Added menu bar on the side panel
+- Removed "open" button. Now in menu File> Open file
+- Added capability to change path of audio files (Edit> Change audio path)
+- Added capability to save changes to new nc file (File> Save as)
+- Added "DPI" slider to adjust spectrogram quality and computing time
+- Automatically decimate audio data to a sample rate 2.5x the maximum frequency requested to speed up spectrogram computation
 
 ### version 20250404
 - Enforced including files extensions when saving csv or wav files

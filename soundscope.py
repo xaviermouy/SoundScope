@@ -35,6 +35,7 @@ import tkinter as tk
 import tkinter.filedialog as file_chooser_dialog
 import matplotlib
 from holoviews.operation import threshold
+from numba.cuda import event
 
 matplotlib.use('agg')
 from bokeh.models.formatters import (
@@ -58,6 +59,7 @@ import datetime
 import sounddevice as sd
 import logging
 from inspect import getmembers, isclass
+plt.ioff()
 
 def exception_handler(ex):
     logging.error("Error", exc_info=ex)
@@ -179,6 +181,11 @@ threshold_widget = pn.widgets.DiscreteSlider(
     name="Confidence threshold", options=list(np.arange(0, 1.01, 0.01)), value=0.5
 )  # Slider widget object from python3 panel library. This object is a container for settings widgets. Ref : https://panel.holoviz.org/reference/widgets/DiscreteSlider.html
 
+# Confidence threshold slider
+dpi_widget = pn.widgets.DiscreteSlider(
+    name="DPI", options=list(np.arange(10, 500, 5)), value=100
+)  #
+
 # Sound class to display
 class_label_widget = pn.widgets.Select(
     name="Class label", options=[]
@@ -235,8 +242,15 @@ frequency_buffer_widget = pn.widgets.FloatInput(
     name="Frequency buffer (Hz)", value=100, step=1, start=0, end=10000
 )
 
+# file_items = ["\U0001F4BE Save", "🚪 Exit"]
+# help_items = ["⚖️ License", None, "\U0001F6C8 About"]
+# pn.Column(pn.Row(
+#     pn.widgets.MenuButton(name="File", icon="file", items=file_items, width=75, button_type="light"),
+#     pn.widgets.MenuButton(name="🧏🏻‍♂️ Help", items=help_items, width=100, button_type="light"),
+#     styles={"border-bottom": "1px solid black"}
+#     ), height=200,
+# )
 # Stream
-
 lineplot_tap = hv.streams.Tap(x=0, y=0)
 heatmap_tap = hv.streams.Tap(
     x=0, y=0
@@ -391,7 +405,7 @@ def rasterize_and_save(fname, rasterize_list=None, fig=None, dpi=None,
         savefig_kw['dpi'] = dpi
 
     # Save resulting figure
-    fig.savefig(fname, **savefig_kw)
+    fig.savefig(fname, **savefig_kw,transparent=False)
 
 def update_analysis_timezone_text(analysis_timezone):
     #analysis_timezone_text.object = f"Time zone of analysis: UTC {analysis_timezone}"
@@ -1034,6 +1048,20 @@ def show_save_file_dialog(filename=None, extension=None):
     )
     return outfilename
 
+def show_select_dir_dialog():
+    """This function just opens the directory explorer widget implemented as a panel modal.
+
+    Args:
+        event (_type_): _description_
+    """
+    settings_widgetbox.disabled = False
+    root = tk.Tk()
+    root.withdraw()
+    root.call("wm", "attributes", ".", "-topmost", True)
+
+    outdirname = tk.filedialog.askdirectory()
+    return outdirname
+
 def show_file_selector(event):
     """This function just opens the file explorer widget implemented as a panel modal.
 
@@ -1132,12 +1160,10 @@ def spectrogram_plot(index=None):
     logger.debug(
         "Loading spectrogram plot"
     )  # Log event of a spectrogram plot being loaded.
+    start_time = time.perf_counter()  # start timer
     spectro_loading_spinner.value=True
     spectro_loading_spinner.name = 'Calculating spectrogram...'
     spectro_loading_spinner.visible=True
-    # debug
-    start_time = time.perf_counter()
-
     global spectrogram_plot_pane  # Global variable for the spectrogram plot pane.
     global spectrogram_metadata_explorer
     global selected_sound
@@ -1148,17 +1174,11 @@ def spectrogram_plot(index=None):
     global step_dur_widget
     global time_buffer_widget
     global frequency_buffer_widget
+    global dpi_widget
 
     if (type(index) == int) and (
         dataset is not None
-    ):  # If there is an index value associated with a detection event.
-        # frame = 0.03 #3000
-        # nfft = 0.08 # 4096
-        # step = 0.01 # 5
-        # window_type = 'hann'
-        # time_buffer = 2
-        # frequency_buffer = 100
-        # palet = 'Blues' # 'binary'
+    ):
 
         frame = frame_dur_widget.value  # 3000
         nfft = fft_dur_widget.value  # 4096
@@ -1166,10 +1186,9 @@ def spectrogram_plot(index=None):
         window_type = "hann"
         time_buffer = time_buffer_widget.value
         frequency_buffer = frequency_buffer_widget.value
-
         data_selection = active_data.data.loc[index]
-
         data_selection_df = data_selection.to_frame()
+        dpi = dpi_widget.value
 
         # initialize list of lists
         data = [
@@ -1228,57 +1247,51 @@ def spectrogram_plot(index=None):
 
         # Create the pandas DataFrame
         df = pd.DataFrame(data, columns=["Label", "Data"])
-
         spectrogram_metadata_explorer.disabled = False
         spectrogram_metadata_explorer.layout = "fit_columns"
         try:
             spectrogram_metadata_explorer.value = df
         except:
             spectrogram_metadata_explorer.value = df
-
-        #spectrogram_metadata_explorer.value = data_selection_df
-
         wavfilename = os.path.join(
             data_selection.audio_file_dir,
             data_selection.audio_file_name + data_selection.audio_file_extension,
         )
         logger.debug(wavfilename)
-
         t1 = data_selection.time_min_offset - time_buffer
         t2 = data_selection.time_max_offset + time_buffer
-
-        # debug
-        end_time = time.perf_counter()
+        end_time = time.perf_counter() # end timer
         elapsed_time = end_time - start_time
         print(f"Elapsed time spectro init: {elapsed_time:.2f} seconds")
 
-        # debug
-        start_time = time.perf_counter()
-
         # load audio data
+        start_time = time.perf_counter() # start timer
         sound = Sound(wavfilename)
         selected_sound = sound
-
         if t1 < 0:
             t1 = 0
         if t2 > sound.file_duration_sec:
             t2 = sound.file_duration_sec
-
         sound.read(
             channel=data_selection.audio_channel - 1,
             chunk=[t1, t2],
             unit="sec",
             detrend=True,
         )
-
-        # debug
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
         print(f"Elapsed time load data: {elapsed_time:.2f} seconds")
 
-        # debug
-        start_time = time.perf_counter()
+        # decimate audio data
+        start_time = time.perf_counter()  # start timer
+        new_fs = 2.5*(data_selection.frequency_max + frequency_buffer)
+        sound.decimate(new_fs)
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print(f"Elapsed time decinate data: {elapsed_time:.2f} seconds")
 
+        # compute spectrogram
+        start_time = time.perf_counter() # start timer
         spectro = Spectrogram(
             frame,
             window_type,
@@ -1288,9 +1301,7 @@ def spectrogram_plot(index=None):
             unit="sec",
         )
         spectro.compute(sound, dB=True, use_dask=False, dask_chunks=40)
-
-        # debug
-        end_time = time.perf_counter()
+        end_time = time.perf_counter() # end timer
         elapsed_time = end_time - start_time
         print(f"Elapsed time compute spectro: {elapsed_time:.2f} seconds")
 
@@ -1311,10 +1322,8 @@ def spectrogram_plot(index=None):
             ignore_index=True,
         )  # Concatenate the Annotation object with a pandas dataframe object.
 
-        # debug
-        start_time = time.perf_counter()
-
-        # Plot
+        # PLot spectrogram
+        start_time = time.perf_counter() # start timer
         fmax = data_selection.frequency_max + frequency_buffer
         fmin = data_selection.frequency_min - frequency_buffer
         if fmin < 0:
@@ -1333,20 +1342,16 @@ def spectrogram_plot(index=None):
         graph.add_annotation(
             annot, panel=0, color="black", label="Detections"
         )  # Add the Annotation object to the graph object.
-
         graph.colormap = color_map_widget_spectrogram.value_name
-
         fig, ax = graph.show(display=False)
-
-        # debug
-        end_time = time.perf_counter()
+        end_time = time.perf_counter() # end timer
         elapsed_time = end_time - start_time
         print(f"Elapsed time create spectro plot: {elapsed_time:.2f} seconds")
 
-        # debug
-        start_time = time.perf_counter()
+        # Save spetro as png
+        start_time = time.perf_counter() # start timer
         filename='selection_spectro' + '.jpg'
-        rasterize_and_save(filename,[ax], fig=fig, dpi=100)
+        rasterize_and_save(filename,[ax], fig=fig, dpi=dpi)
         # ax.set_rasterized(True)
         # ax.set_rasterization_zorder(0)
         # #plt.draw()
@@ -1359,32 +1364,23 @@ def spectrogram_plot(index=None):
         #fig.canvas.draw()
         #image = np.array(fig.canvas.renderer.buffer_rgba())
         #cv2.imwrite(filename, cv2.cvtColor(image, cv2.COLOR_RGBA2BGR))
-
-        # debug
-        end_time = time.perf_counter()
+        end_time = time.perf_counter() # end timer
         elapsed_time = end_time - start_time
         print(f"Elapsed time saving spectro plot to png: {elapsed_time:.2f} seconds")
 
         #graph.to_file('test' + ".png")
-
         #fig, ax = graph.show(display=False)  # Create a figure and axes object.
         #fig.set_size_inches(14, 8)  # Set the size of the figure.
-
         # # debug
         # end_time = time.perf_counter()
         # elapsed_time = end_time - start_time
         # print(f"Elapsed time create spectro plot: {elapsed_time:.2f} seconds")
 
-        # debug
-        start_time = time.perf_counter()
-
-        #spectrogram_plot_pane.param.trigger("object")
-        #spectrogram_plot_pane.object = fig
+        # Display spectro in UI
+        start_time = time.perf_counter() # start timer
         spectrogram_plot_pane.object = 'selection_spectro.jpg'
         spectrogram_plot_pane.param.trigger("object")
-
-        # debug
-        end_time = time.perf_counter()
+        end_time = time.perf_counter() # end timer
         elapsed_time = end_time - start_time
         print(f"Elapsed time display spectro: {elapsed_time:.2f} seconds")
         spectro_loading_spinner.value = False
@@ -1399,7 +1395,6 @@ def spectrogram_plot(index=None):
         spectro_loading_spinner.value = False
         spectro_loading_spinner.name = ''
         spectro_loading_spinner.visible=False
-
 
 def test_matplotlib():
     df = pd.DataFrame({"a": [0, 0, 1, 1], "b": [0, 1, 3, 2]})
@@ -1644,6 +1639,20 @@ def load_detections(class_label_widget, threshold_widget):
         "Detections (" + str(len(active_data)) + ")"
     )  # Set detections label showing the quantity of detections per active_data.
 
+def save_nc_file(event):
+    #global selected_sound
+    filename_tmp = data_file_name
+    filename = show_save_file_dialog(filename=filename_tmp, extension='.nc')
+    dataset.to_netcdf(filename)
+    success_notification('File saved successfully')
+
+def update_audio_path(event):
+    global dataset
+    global active_data
+    dir = show_select_dir_dialog()
+    dataset.insert_values(audio_file_dir=dir)
+    active_data.insert_values(audio_file_dir=dir)
+    success_notification('Audio path successfully updated')
 
 watcher_heatmap = heatmap_tap.param.watch(
     callback_heatmap_selection, ["x", "y"], onlychanged=False
@@ -1796,6 +1805,7 @@ spectro_settings_widgetbox = pn.WidgetBox(
     step_dur_widget,
     time_buffer_widget,
     frequency_buffer_widget,
+    dpi_widget,
     color_map_widget_spectrogram,
     apply_spectro_settings_button,
     disabled=False,
@@ -1815,10 +1825,36 @@ detec_files_multi_select = pn.widgets.MultiSelect(
 )
 file_name_markdown = pn.pane.Markdown("", width=100)
 
+
+# menu bar
+file_items = ["Open file", "Save as"]
+edit_items = ["Change audio path"]
+menu_file_widget = pn.widgets.MenuButton(name="File", icon="file", items=file_items, height=40, width=90, button_style='outline', button_type="light", margin=0)
+menu_edit_widget = pn.widgets.MenuButton(name="Edit", icon='edit', items=edit_items, height=40, width=90, button_style='outline', button_type="light", margin=0)
+top_menu = pn.Row(
+    menu_file_widget,
+    menu_edit_widget,
+    styles={"border-bottom": "1px solid black"}
+    )
+
+def top_menu_file_actions(item):
+    if menu_file_widget.clicked == 'Open file':
+        show_file_selector(event)
+    elif menu_file_widget.clicked == 'Save as':
+        save_nc_file(event)
+
+def top_menu_edit_actions(item):
+    if menu_edit_widget.clicked == 'Change audio path':
+        update_audio_path(event)
+
+menu_file_widget.on_click(top_menu_file_actions)
+menu_edit_widget.on_click(top_menu_edit_actions)
+
 #analysis_timezone_text = pn.pane.Markdown(f"Time zone of analysis: UTC {analysis_timezone} ", sizing_mode='stretch_width')
 # Side panel
 template.sidebar.append(
-    pn.Column(openfile_widgetbox, accordion)
+    pn.Column(top_menu,accordion)
+    #pn.Column(top_menu,openfile_widgetbox, accordion)
 )  # Appends the openfile_widgetbox and settings_widgetbox to the sidebar object from panel template object.
 # template.sidebar.append( pn.Column(file_selection_label_widget,select_file_button,accordion ) ) # Appends the openfile_widgetbox and settings_widgetbox to the sidebar object from panel template object.
 
@@ -1891,7 +1927,6 @@ template.main.append(pn.Column(top_panel_tabs, bottom_panel))
 
 
 # Modal
-
 download_csv_hourly_button.on_click(save_hourly_csv_file)  #
 download_csv_daily_button.on_click(save_daily_csv_file)  #
 
