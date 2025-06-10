@@ -85,7 +85,7 @@ def shaded_image(min_val, max_val, gamma):
 
 # --- Layout ---
 layout = pn.Column(
-    "# Live Spectrogram with Contrast and Gamma Correction",
+    #"# Live Spectrogram with Contrast and Gamma Correction",
     pn.Row(min_slider, max_slider, gamma_slider),
     shaded_image
 )

@@ -1612,6 +1612,59 @@ def stop_selected_sound(event=None):
     else:
         pass
 
+def select_next_detec(event=None):
+    selected = dataframe_explorer_widget.selection
+    if selected:
+        next_index = (selected[0] + 1) #% len(df)
+    else:
+        next_index = 0
+    dataframe_explorer_widget.selection = [next_index]
+    click_dataframe_explorer_widget()
+
+
+# # Define a custom callback function to handle keyboard shortcut event
+# def shortcut_next_detec_event(event):
+#     if event.data == "my_shortcut":
+#         next_detec_button.clicks += 1 # Simulate a click event
+# # Attach the callback to handle events with event name my_shortcut
+# pn.state.add_periodic_callback(shortcut_next_detec_event, period=100, count=1)  # Adjust period/count as needed
+
+# Use pn.pane.HTML with JavaScript to trigger the button on keypress
+hotkey = pn.pane.HTML("""
+<script>
+document.addEventListener('keydown', function(event) {
+    // Replace 'c' with your preferred shortcut key
+    if (event.key === 'c') {
+        document.querySelector('next_detec_button').click();
+    }
+});
+</script>
+""", sizing_mode='fixed')
+
+# # JavaScript code to listen for 'Ctrl+K' and trigger the button click
+# js_code = """
+# <script>
+# document.addEventListener('keydown', function(event) {
+#     // Check if 'Ctrl+K' is pressed
+#     if (event.ctrlKey && event.key === 'k') {
+#         event.preventDefault();  // Prevent default browser behavior
+#         const button = document.getElementById('my-button');
+#         if (button) {
+#             button.click();  // Trigger the button click
+#         }
+#     }
+# });
+# </script>
+# """
+
+# # JS code to handle keyboard shortcuts
+# js_code = """
+# document.addEventListener('keydown', function(event) {
+#   if (event.ctrlKey && event.shiftKey && event.key === 'B') {
+#      window.pn.state.push({'type': 'my_shortcut', 'data': 'my_shortcut'});
+#   }
+# });
+# """
 
 @pn.depends(class_label_widget, threshold_widget)
 def load_detections(class_label_widget, threshold_widget):
@@ -1778,6 +1831,16 @@ download_csv_daily_button = pn.widgets.Button(
     #height=20,
 )
 
+next_detec_button = pn.widgets.Button(
+    icon="chevron-right",
+    name="Next",
+    button_type="primary",
+    icon_size="2em",
+    width=50,
+    height=50,
+)
+next_detec_button._id = 'my-button'  # Assign a unique ID
+
 apply_spectro_settings_button = pn.widgets.Button(
     name="Apply", button_type="primary"
 )  # This button is responsible for opening the file selector.
@@ -1893,7 +1956,7 @@ spectrogram_tabs = pn.Tabs(
         "Spectrogram",
         pn.WidgetBox(
             pn.Column(
-                spectrogram_plot_pane, pn.Row(play_sound_button, stop_sound_button,download_sound_button,pn.Spacer(styles=dict(background='white'), width=50),spectro_loading_spinner)
+                spectrogram_plot_pane, pn.Row(play_sound_button, stop_sound_button,download_sound_button,next_detec_button, pn.Spacer(styles=dict(background='white'), width=50),spectro_loading_spinner)
             ),
             disabled=False,
             margin=(10, 10),
@@ -1923,7 +1986,11 @@ bottom_panel = pn.Row(
     ),
 )
 
-template.main.append(pn.Column(top_panel_tabs, bottom_panel))
+# for javascript code
+# Create an HTML pane to inject the JavaScript
+#js_pane = pn.pane.HTML(js_code, width=0, height=0, sizing_mode='fixed')
+
+template.main.append(pn.Column(top_panel_tabs, bottom_panel, hotkey))
 
 
 # Modal
@@ -1939,12 +2006,14 @@ stop_sound_button.on_click(stop_selected_sound)
 download_sound_button.on_click(download_selected_sound)
 apply_spectro_settings_button.on_click(click_dataframe_explorer_widget)
 
+next_detec_button.on_click(select_next_detec)
+#next_detec_button.js_on_load(code=js_code)
+
 #display_welome_picture()
 
+
 # Serve Application
-
 logger.debug("Serving Panel Template..")
-
-
 template.servable()
 template.show(port=5006, threaded=True, websocket_origin="localhost:5006")
+
