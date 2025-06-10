@@ -5,9 +5,9 @@ The kurtosis detector is a generic detector that detects impulsive signals in a 
 ## Setting up the python environment
 1. Create a python environment with python 3.10 (e.g. using Anaconda)
 2. install the library ecosound
-'''
+```
 pip install ecosound
-'''
+```
 
 
 ## Convert Raven table to ecosound NetCDF files
