@@ -26,8 +26,26 @@ audio_file_extension = '.wav' # extention of the audio files in audio_files_dir
 - detec_files_dir: Path of the folder where the detections from the kurtosis detector are (i.e. Raven tabel files - .txt)
 - audio_files_dir: Path of the folder where the audio files associated with the detctions are
 - nc_file_out_dir: Path of the folder where the SoundScope compatible netCDF file with the detections
+- nc_file_out_name: name of the nectCDF file that will be created. It shoudl end with .nc
+- audio_file_extension: extension of teh audio files (typically '.wav'). 
 
+Make sure to have all paths between quortes and preceded by the letter "r" (as shown in section 2. above).
+
+4. Run the script:
+- Open terminal in the python environment created above
+- run the script:
+```
+python convert_KurtosisDetector2netcdf.py
+```
+Note that you might have to add teh path to the script if it is not located in the current directory. The script should create a .nc file with teh name and path that were indicated in the script.
 
 
 ## Load detections in SoundScope
+- Open SoundScope
+- Load the nc file created in the step above (menu: file > Open File)
+
+if the path of the sound files have chanegd since you created the nc file, update the path in SoundScope using the menu Edit > Change Audio Path.
+
+
+
 
