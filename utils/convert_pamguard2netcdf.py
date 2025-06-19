@@ -7,6 +7,7 @@ Created on Thu Dec  1 21:43:55 2022
 
 from ecosound.core.tools import list_files, filename_to_datetime
 from ecosound.core.measurement import Measurement
+from ecosound.core.audiotools  import Sound
 import sqlite3
 import pandas as pd
 from datetime import datetime, timedelta
@@ -15,10 +16,10 @@ import uuid
 import os
 from time import process_time
 
-out_dir = r"C:\Users\xavier.mouy\Documents\GitHub\Blob_generic_detector\data\HF\subset"
-in_dir = r"C:\Users\xavier.mouy\Documents\GitHub\Blob_generic_detector\data\HF\subset"
-file_name = "db_5783" # don't include the ".sqlite3"
-data_folder = r"C:\Users\xavier.mouy\Documents\GitHub\Blob_generic_detector\data\HF\subset"
+out_dir = r"C:\Users\xavier.mouy\Desktop\Kayla\output"
+in_dir = r"C:\Users\xavier.mouy\Desktop\Kayla"
+file_name = "JulyData" # don't include the ".sqlite3"
+data_folder = r"C:\Users\xavier.mouy\Desktop\Kayla"
 deployment_file = r"C:\Users\xavier.mouy\Documents\GitHub\SoundScope\tmp\deployment_info.csv"
 
 audio_files_ext = ".wav"
@@ -26,11 +27,14 @@ audio_files_ext = ".wav"
 #class_names = ["WMD-HF","WMD-MF","WMD-LF"]
 sql_table_names = ["Whistle_and_Moan_Detector"] #"Dolphin_WMD"
 class_names = ["WMD-HF"]
-time_offset = 0
+time_zone_offset_hours = 0
+time_correction_offset_sec = 0.67
+
+
 
 
 ## ############################################################################
-def SQLiteTable2Annot(sql_table_name=None, class_name=None, in_dir=None, data_folder=None,deployment_file=None,audio_files_ext=None, time_offset=None):
+def SQLiteTable2Annot(sql_table_name=None, class_name=None, in_dir=None, data_folder=None,deployment_file=None,audio_files_ext=None, time_zone_offset_hours=None, time_correction_offset_sec=None):
 
     start_time = process_time()
 
@@ -40,6 +44,13 @@ def SQLiteTable2Annot(sql_table_name=None, class_name=None, in_dir=None, data_fo
     files_list = list_files(data_folder, audio_files_ext)
     files_list.sort()
     files_dates = filename_to_datetime(files_list)
+
+    audiofile = Sound(files_list[-1])
+
+    min_date = files_dates[0]
+    max_date = files_dates[-1] + timedelta(seconds=audiofile.file_duration_sec)
+
+
 
     # import sql file from pamguard
     conn = sqlite3.connect(os.path.join(in_dir, file_name + ".sqlite3"))
@@ -79,11 +90,19 @@ def SQLiteTable2Annot(sql_table_name=None, class_name=None, in_dir=None, data_fo
     tmp_detec = sql_table.iloc[round(len(sql_table)/2)]
     fs = tmp_detec["startSample"] / tmp_detec["startSeconds"]
 
+    idx_to_delete =[]
+
     # go through each detections in the table
     for idx, detec in sql_table.iterrows():
 
         # find associated audio file:
         detec_time = datetime.strptime(detec.UTC, "%Y-%m-%d %H:%M:%S.%f")
+
+        if (detec_time > max_date) or (detec_time < min_date):
+            idx_to_delete.append(idx)
+            print('detection outside the time boundaries of the audio dataset')
+            continue
+
         time_diff = [detec_time - filedate for filedate in files_dates]
         time_diff = [
             np.nan if i.total_seconds() < 0 else i.total_seconds()
@@ -97,7 +116,7 @@ def SQLiteTable2Annot(sql_table_name=None, class_name=None, in_dir=None, data_fo
             labels[idx] = class_name
 
         filename = files_list[file_index]
-        time_min_offset[idx] = detec["startSeconds"]
+        time_min_offset[idx] = detec["startSeconds"] + time_correction_offset_sec
         time_max_offset[idx] = time_min_offset[idx] + (detec["duration"] / fs)
         audio_file_dir[idx] = os.path.dirname(filename)
         audio_file_name[idx] = os.path.splitext(os.path.basename(filename))[0]
@@ -143,15 +162,27 @@ def SQLiteTable2Annot(sql_table_name=None, class_name=None, in_dir=None, data_fo
     annot.data["amplitude"] = sql_table["amplitude"]
 
     annot.insert_metadata(deployment_file)
-    annot.check_integrity()
+    #annot.check_integrity(verbose=True)
+
+    # delete out of time range detections
+    annot.data.drop(idx_to_delete, inplace=True)
+
 
     # Apply time offset
+    # annot.data["time_min_date"] = annot.data["time_min_date"] + timedelta(
+    #     seconds=time_correction_offset_sec
+    # )
+    #
+    # annot.data["time_max_date"] = annot.data["time_max_date"] + timedelta(
+    #     seconds=time_correction_offset_sec
+    # )
+
     annot.data["time_min_date"] = annot.data["time_min_date"] + timedelta(
-        hours=time_offset
+        hours=time_zone_offset_hours
     )
 
     annot.data["time_max_date"] = annot.data["time_max_date"] + timedelta(
-        hours=time_offset
+        hours=time_zone_offset_hours
     )
 
     annot.insert_values(UTC_offset=-5)
@@ -163,7 +194,7 @@ def SQLiteTable2Annot(sql_table_name=None, class_name=None, in_dir=None, data_fo
 # go trhough each table in SQLite dB
 idx=0
 for sql_table_name, class_name in zip(sql_table_names, class_names):
-    annot_tmp = SQLiteTable2Annot(sql_table_name=sql_table_name, class_name=class_name, in_dir=in_dir, data_folder=data_folder,deployment_file=deployment_file,audio_files_ext=audio_files_ext, time_offset=time_offset)
+    annot_tmp = SQLiteTable2Annot(sql_table_name=sql_table_name, class_name=class_name, in_dir=in_dir, data_folder=data_folder,deployment_file=deployment_file,audio_files_ext=audio_files_ext, time_zone_offset_hours=time_zone_offset_hours, time_correction_offset_sec=time_correction_offset_sec)
     if idx==0:
         annot=annot_tmp
     else:
