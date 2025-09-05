@@ -16,8 +16,8 @@ SoundScope is still under heavy development. Please don't hesitate to reach out 
 There are 2 ways to use SoundScope:
 
 ### Download the latest binary 
-This is the easiest way as it does not require to install anything. The binaries are uploaded in this Google folder: [SoundScope binaries](https://whoi-my.sharepoint.com/:f:/g/personal/xavier_mouy_whoi_edu/EtRGhOyVbSJMiLBs0DetDyEBRdaVMQP_BdA4Yoeb_if65w?e=WdTdzE)
-Download the latest zip file, unzip it, and double click on soundscope.exe to launch the application.
+This is the easiest way as it does not require to install anything. The binaries are uploaded for each release here: [SoundScope binaries](https://github.com/xaviermouy/SoundScope/releases)
+Select your release version, go to Assets, download the zip file, unzip it, and double click on soundscope.exe to launch the application.
 
 ### Clone the Github repository
 This is more involved as it requires to install python and required python libraries. For instructions see the "Development notes" section below. 
@@ -53,6 +53,10 @@ If you want new functionalities to be added to SoundScope, add an entry to the [
 thumbs-up emoji (👍) to boost the priority of a new features.
 
 # Versions
+### version 20250905
+- Added option to display spectrograms with fixed or adpative frequency boundaries
+- Added "Next" and "Previous" button to browse through detections more easily
+
 ### version 20250511
 - Added menu bar on the side panel
 - Removed "open" button. Now in menu File> Open file
@@ -84,7 +88,7 @@ thumbs-up emoji (👍) to boost the priority of a new features.
 - Increased maximum allowed time offset in spectrogram to 500 seconds
 - Added time zone support
 
-### version 20241107
+### version 20240718
 - Initial release
 
 

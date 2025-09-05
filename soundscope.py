@@ -41,6 +41,13 @@ matplotlib.use('agg')
 from bokeh.models.formatters import (
     DatetimeTickFormatter,
 )  # Bokeh datetime formatter for plotting.
+# from bokeh.models import CustomJS
+# from bokeh.io import curdoc
+
+# import keyboard
+# import threading
+# import time
+
 from matplotlib.cm import (
     Reds,
     Blues,
@@ -59,11 +66,90 @@ import datetime
 import sounddevice as sd
 import logging
 from inspect import getmembers, isclass
+
+import panel as pn
+from panel.custom import ReactComponent
+import param
+#from typing import TypedDict, NotRequired
+from typing import TypedDict
+from typing_extensions import NotRequired
+
 plt.ioff()
 
 def exception_handler(ex):
     logging.error("Error", exc_info=ex)
     pn.state.notifications.error('Error: %s' % ex)
+
+# # Note: this uses TypedDict instead of Pydantic or dataclass because Bokeh/Panel doesn't seem to
+# # like serializing custom classes to the frontend (and I can't figure out how to customize that).
+# class KeyboardShortcut(TypedDict):
+#     name: str
+#     key: str
+#     altKey: NotRequired[bool]
+#     ctrlKey: NotRequired[bool]
+#     metaKey: NotRequired[bool]
+#     shiftKey: NotRequired[bool]
+#
+#
+# class KeyboardShortcuts(ReactComponent):
+#     """
+#     Class to install global keyboard shortcuts into a Panel app.
+#
+#     Pass in shortcuts as a list of KeyboardShortcut dictionaries, and then handle shortcut events in Python
+#     by calling `on_msg` on this component. The `name` field of the matching KeyboardShortcut will be sent as the `data`
+#     field in the `DataEvent`.
+#
+#     Example:
+#     >>> shortcuts = [
+#         KeyboardShortcut(name="save", key="s", ctrlKey=True),
+#         KeyboardShortcut(name="print", key="p", ctrlKey=True),
+#     ]
+#     >>> shortcuts_component = KeyboardShortcuts(shortcuts=shortcuts)
+#     >>> def handle_shortcut(event: DataEvent):
+#             if event.data == "save":
+#                 print("Save shortcut pressed!")
+#             elif event.data == "print":
+#                 print("Print shortcut pressed!")
+#     >>> shortcuts_component.on_msg(handle_shortcut)
+#     """
+#
+#     shortcuts = param.List(class_=dict)
+#
+#     _esm = """
+#     // Hash a shortcut into a string for use in a dictionary key (booleans / null / undefined are coerced into 1 or 0)
+#     function hashShortcut({ key, altKey, ctrlKey, metaKey, shiftKey }) {
+#       return `${key}.${+!!altKey}.${+!!ctrlKey}.${+!!metaKey}.${+!!shiftKey}`;
+#     }
+#
+#     export function render({ model }) {
+#       const [shortcuts] = model.useState("shortcuts");
+#
+#       const keyedShortcuts = {};
+#       for (const shortcut of shortcuts) {
+#         keyedShortcuts[hashShortcut(shortcut)] = shortcut.name;
+#       }
+#
+#       function onKeyDown(e) {
+#         const name = keyedShortcuts[hashShortcut(e)];
+#         if (name) {
+#           e.preventDefault();
+#           e.stopPropagation();
+#           model.send_msg(name);
+#           return;
+#         }
+#       }
+#
+#       React.useEffect(() => {
+#         window.addEventListener('keydown', onKeyDown);
+#         return () => {
+#           window.removeEventListener('keydown', onKeyDown);
+#         };
+#       });
+#
+#       return <></>;
+#     }
+#     """
+
 
 pn.extension(exception_handler=exception_handler, notifications=True)
 warnings.filterwarnings("always")  # Warning configuration.
@@ -238,18 +324,62 @@ step_dur_widget = pn.widgets.FloatInput(
 time_buffer_widget = pn.widgets.FloatInput(
     name="Time buffer (s)", value=2, step=1, start=0, end=500
 )
+
+frequency_bounds_mode_widget = pn.widgets.Switch(
+    name="Use fixed frequency bounds",
+    value=True,  # Default to adaptive (False = adaptive, True = fixed)
+    width=30,
+    #margin=(10, 10, 10, 10)
+)
+
 frequency_buffer_widget = pn.widgets.FloatInput(
     name="Frequency buffer (Hz)", value=100, step=1, start=0, end=10000
 )
 
-# file_items = ["\U0001F4BE Save", "🚪 Exit"]
-# help_items = ["⚖️ License", None, "\U0001F6C8 About"]
-# pn.Column(pn.Row(
-#     pn.widgets.MenuButton(name="File", icon="file", items=file_items, width=75, button_type="light"),
-#     pn.widgets.MenuButton(name="🧏🏻‍♂️ Help", items=help_items, width=100, button_type="light"),
-#     styles={"border-bottom": "1px solid black"}
-#     ), height=200,
-# )
+frequency_min_widget = pn.widgets.FloatInput(
+    name="Frequency min. (Hz)", value=0, step=1, start=0, end=500000
+)
+
+frequency_max_widget = pn.widgets.FloatInput(
+    name="Frequency max. (Hz)", value=1000, step=1, start=0, end=500000
+)
+frequency_mode_widget = pn.widgets.StaticText(
+    name="",
+    value="<b>Frequency limits mode ",
+    sizing_mode="stretch_width"
+)
+
+frequency_mode_status_widget = pn.widgets.StaticText(
+    name="",
+    value=" Frequency limits: ADAPTIVE",
+    #sizing_mode="stretch_width"
+)
+
+# Callback function to handle the switch toggle
+def toggle_frequency_bounds_mode(event):
+    if frequency_bounds_mode_widget.value:  # Fixed mode
+        # Disable adaptive buffer
+        frequency_buffer_widget.visible= True
+        # Enable fixed bounds widgets
+        frequency_min_widget.visible = False
+        frequency_max_widget.visible = False
+        frequency_mode_status_widget.value = " Frequency limits: ADAPTIVE"
+        # sizing_mode="stretch_width"
+
+    else:  # Adaptive mode
+        # Enable adaptive buffer
+        frequency_buffer_widget.visible = False
+        # Disable fixed bounds widgets
+        frequency_min_widget.visible = True
+        frequency_max_widget.visible = True
+        frequency_mode_status_widget.value = " Frequency limits: FIXED"
+
+# Watch for changes in the switch
+frequency_bounds_mode_widget.param.watch(toggle_frequency_bounds_mode, 'value')
+
+# Initialize the widget states based on default switch value
+toggle_frequency_bounds_mode(None)
+
 # Stream
 lineplot_tap = hv.streams.Tap(x=0, y=0)
 heatmap_tap = hv.streams.Tap(
@@ -265,7 +395,6 @@ detec_files_multi_select = pn.widgets.MultiSelect(
 )
 # sound_checkbox = pn.widgets.Checkbox(name='Automatically play selected sound', value=False)
 file_name_markdown = pn.pane.Markdown("", width=100)
-
 
 dataframe_explorer_widget = pn.widgets.Tabulator(
     name="Detection Dataframe Window",
@@ -288,7 +417,6 @@ spectrogram_metadata_explorer = pn.widgets.Tabulator(
     page_size=50,
     show_index=False,
 )
-
 
 datetime_range_picker = pn.widgets.DatetimeRangePicker(
     name="Datetime Range Selection", sizing_mode="stretch_width"
@@ -1176,6 +1304,12 @@ def spectrogram_plot(index=None):
     global frequency_buffer_widget
     global dpi_widget
 
+    global frequency_buffer_widget
+    global frequency_min_widget
+    global frequency_max_widget
+    global frequency_bounds_mode_widget
+
+
     if (type(index) == int) and (
         dataset is not None
     ):
@@ -1324,10 +1458,17 @@ def spectrogram_plot(index=None):
 
         # PLot spectrogram
         start_time = time.perf_counter() # start timer
-        fmax = data_selection.frequency_max + frequency_buffer
-        fmin = data_selection.frequency_min - frequency_buffer
+
+        if frequency_bounds_mode_widget.value:  #  Adaptive mode
+            frequency_buffer = frequency_buffer_widget.value
+            fmax = data_selection.frequency_max + frequency_buffer
+            fmin = data_selection.frequency_min - frequency_buffer
+        else:  # Fixed mode
+            fmax = frequency_max_widget.value
+            fmin = frequency_min_widget.value
         if fmin < 0:
             fmin = 0
+
         graph = GrapherFactory(
             "SoundPlotter",
             title=str(index)
@@ -1621,50 +1762,15 @@ def select_next_detec(event=None):
     dataframe_explorer_widget.selection = [next_index]
     click_dataframe_explorer_widget()
 
+def select_previous_detec(event=None):
+    selected = dataframe_explorer_widget.selection
+    if selected:
+        next_index = (selected[0] - 1) #% len(df)
+    else:
+        next_index = 0
+    dataframe_explorer_widget.selection = [next_index]
+    click_dataframe_explorer_widget()
 
-# # Define a custom callback function to handle keyboard shortcut event
-# def shortcut_next_detec_event(event):
-#     if event.data == "my_shortcut":
-#         next_detec_button.clicks += 1 # Simulate a click event
-# # Attach the callback to handle events with event name my_shortcut
-# pn.state.add_periodic_callback(shortcut_next_detec_event, period=100, count=1)  # Adjust period/count as needed
-
-# Use pn.pane.HTML with JavaScript to trigger the button on keypress
-hotkey = pn.pane.HTML("""
-<script>
-document.addEventListener('keydown', function(event) {
-    // Replace 'c' with your preferred shortcut key
-    if (event.key === 'c') {
-        document.querySelector('next_detec_button').click();
-    }
-});
-</script>
-""", sizing_mode='fixed')
-
-# # JavaScript code to listen for 'Ctrl+K' and trigger the button click
-# js_code = """
-# <script>
-# document.addEventListener('keydown', function(event) {
-#     // Check if 'Ctrl+K' is pressed
-#     if (event.ctrlKey && event.key === 'k') {
-#         event.preventDefault();  // Prevent default browser behavior
-#         const button = document.getElementById('my-button');
-#         if (button) {
-#             button.click();  // Trigger the button click
-#         }
-#     }
-# });
-# </script>
-# """
-
-# # JS code to handle keyboard shortcuts
-# js_code = """
-# document.addEventListener('keydown', function(event) {
-#   if (event.ctrlKey && event.shiftKey && event.key === 'B') {
-#      window.pn.state.push({'type': 'my_shortcut', 'data': 'my_shortcut'});
-#   }
-# });
-# """
 
 @pn.depends(class_label_widget, threshold_widget)
 def load_detections(class_label_widget, threshold_widget):
@@ -1792,7 +1898,9 @@ play_sound_button = pn.widgets.Button(
     icon_size="2em",
     width=50,
     height=50,
+    sizing_mode='fixed',
 )
+
 stop_sound_button = pn.widgets.Button(
     icon="player-stop",
     name="Stop",
@@ -1801,12 +1909,29 @@ stop_sound_button = pn.widgets.Button(
     width=50,
     height=50,
 )
+previous_detec_button = pn.widgets.Button(
+    icon="chevron-left",
+    name="Previous",
+    button_type="primary",
+    icon_size="2em",
+    width=75,
+    height=50,
+)
+next_detec_button = pn.widgets.Button(
+    icon="chevron-right",
+    name="Next",
+    button_type="primary",
+    icon_size="2em",
+    width=80,
+    height=50,
+)
+
 download_sound_button = pn.widgets.Button(
     icon="download",
     name="Download",
     button_type="primary",
     icon_size="2em",
-    width=50,
+    width=80,
     height=50,
 )
 
@@ -1831,15 +1956,9 @@ download_csv_daily_button = pn.widgets.Button(
     #height=20,
 )
 
-next_detec_button = pn.widgets.Button(
-    icon="chevron-right",
-    name="Next",
-    button_type="primary",
-    icon_size="2em",
-    width=50,
-    height=50,
-)
-next_detec_button._id = 'my-button'  # Assign a unique ID
+
+
+# next_detec_button._id = 'my-button'  # Assign a unique ID
 
 apply_spectro_settings_button = pn.widgets.Button(
     name="Apply", button_type="primary"
@@ -1862,14 +1981,43 @@ settings_widgetbox = pn.WidgetBox(
     sizing_mode="stretch_width",
 )  # Widget object from python3 panel library. This object is a container for settings widgets. Ref : https://panel.holoviz.org/reference/layouts/WidgetBox.html
 # spectro_settings_label_widget = pn.widgets.StaticText(name='Spectrogram settings', value='', sizing_mode='stretch_width') # Text with file selected.
-spectro_settings_widgetbox = pn.WidgetBox(
+
+
+resolution_settings_group = pn.Card(
     frame_dur_widget,
     fft_dur_widget,
     step_dur_widget,
-    time_buffer_widget,
-    frequency_buffer_widget,
+    title="Resolution",
+    sizing_mode="stretch_width",
+    collapsible=False,
+    header_background='#DEE2E6',
+)
+
+rendering_settings_group = pn.Card(
     dpi_widget,
     color_map_widget_spectrogram,
+    title="Rendering",
+    sizing_mode="stretch_width",
+    collapsible=False,
+    header_background='#DEE2E6',
+)
+
+limits_settings_group = pn.Card(
+    time_buffer_widget,
+    pn.Row(frequency_bounds_mode_widget, frequency_mode_status_widget),
+    frequency_min_widget,  # Add fixed min frequency
+    frequency_max_widget,  # Add fixed max frequency
+    frequency_buffer_widget,  # Keep existing adaptive buffer
+    title="Boundaries",
+    sizing_mode="stretch_width",
+    collapsible=False,
+    header_background='#DEE2E6',
+)
+
+spectro_settings_widgetbox = pn.WidgetBox(
+    resolution_settings_group,
+    limits_settings_group,
+    rendering_settings_group,
     apply_spectro_settings_button,
     disabled=False,
     margin=(10, 10),
@@ -1912,6 +2060,26 @@ def top_menu_edit_actions(item):
 
 menu_file_widget.on_click(top_menu_file_actions)
 menu_edit_widget.on_click(top_menu_edit_actions)
+
+
+
+#  ## Keyboard shortcuts  #########################################
+# #def handle_shortcut(event: DataEvent):
+# def handle_shortcut(event):
+#     if event.data == "save":
+#         print("Save shortcut pressed!")
+#     elif event.data == "print":
+#         print("Print shortcut pressed!")
+#
+# shortcuts = [
+#     KeyboardShortcut(name="save", key="s", ctrlKey=True),
+#     KeyboardShortcut(name="print", key="p", ctrlKey=True),
+# ]
+#
+# shortcuts_component = KeyboardShortcuts(shortcuts=shortcuts)
+# shortcuts_component.on_msg(handle_shortcut)
+
+################################################################
 
 #analysis_timezone_text = pn.pane.Markdown(f"Time zone of analysis: UTC {analysis_timezone} ", sizing_mode='stretch_width')
 # Side panel
@@ -1956,7 +2124,7 @@ spectrogram_tabs = pn.Tabs(
         "Spectrogram",
         pn.WidgetBox(
             pn.Column(
-                spectrogram_plot_pane, pn.Row(play_sound_button, stop_sound_button,download_sound_button,next_detec_button, pn.Spacer(styles=dict(background='white'), width=50),spectro_loading_spinner)
+                spectrogram_plot_pane, pn.Row(play_sound_button, stop_sound_button,download_sound_button,previous_detec_button,next_detec_button, pn.Spacer(styles=dict(background='white'), width=50),spectro_loading_spinner)
             ),
             disabled=False,
             margin=(10, 10),
@@ -1990,8 +2158,10 @@ bottom_panel = pn.Row(
 # Create an HTML pane to inject the JavaScript
 #js_pane = pn.pane.HTML(js_code, width=0, height=0, sizing_mode='fixed')
 
-template.main.append(pn.Column(top_panel_tabs, bottom_panel, hotkey))
-
+template.main.append(pn.Column(top_panel_tabs, bottom_panel))
+#keyboard_shortcuts = KeyboardShortcutHandler()
+#template.main.append(pn.Column(top_panel_tabs, bottom_panel, keyboard_shortcuts.get_widget()))
+#eetemplate.main.append(shortcuts)
 
 # Modal
 download_csv_hourly_button.on_click(save_hourly_csv_file)  #
@@ -2007,10 +2177,11 @@ download_sound_button.on_click(download_selected_sound)
 apply_spectro_settings_button.on_click(click_dataframe_explorer_widget)
 
 next_detec_button.on_click(select_next_detec)
+previous_detec_button.on_click(select_previous_detec)
+
 #next_detec_button.js_on_load(code=js_code)
 
 #display_welome_picture()
-
 
 # Serve Application
 logger.debug("Serving Panel Template..")
