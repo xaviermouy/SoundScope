@@ -11,6 +11,7 @@ import numpy as np
 import pytz
 import panel as pn  # Flask like framework with a great library for modular installation of graphical components.
 import copy  # For use of deep copying. We use it in the creation of active data so that we will unhinder the original object's memory.
+from pathlib import Path
 
 from distributed.diagnostics.nvml import one_time
 from ecosound.core.tools import (
@@ -1805,12 +1806,25 @@ def save_nc_file(event):
     dataset.to_netcdf(filename)
     success_notification('File saved successfully')
 
+def has_subfolders(folder_path):
+    try:
+        path = Path(folder_path)
+        return any(item.is_dir() for item in path.iterdir())
+    except (OSError, FileNotFoundError):
+        return False
+
 def update_audio_path(event):
     global dataset
     global active_data
     dir = show_select_dir_dialog()
-    dataset.insert_values(audio_file_dir=dir)
-    active_data.insert_values(audio_file_dir=dir)
+
+    has_subfold = has_subfolders(dir)
+    if has_subfold:
+        dataset.update_audio_dir(dir)
+        active_data.update_audio_dir(dir)
+    else:
+        dataset.insert_values(audio_file_dir=dir)
+        active_data.insert_values(audio_file_dir=dir)
     success_notification('Audio path successfully updated')
 
 watcher_heatmap = heatmap_tap.param.watch(
