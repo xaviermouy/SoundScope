@@ -47,7 +47,7 @@ detec.data.confidence = detec.data.confidence / 100 # Normalize the kurtosis val
 
 # update audio files path
 print('Updating audio files paths')
-#detec.update_audio_dir(audio_files_dir)
+detec.update_audio_dir(audio_files_dir)
 
 # check integrity
 detec.check_integrity(verbose=True, ignore_frequency_duplicates=True)
