@@ -2223,5 +2223,5 @@ previous_detec_button.on_click(select_previous_detec)
 # Serve Application
 logger.debug("Serving Panel Template..")
 template.servable()
-# template.show(port=5006, threaded=True, websocket_origin="localhost:5006")
+template.show(port=5006, threaded=True, websocket_origin="localhost:5006")
 
