@@ -69,7 +69,7 @@ import logging
 from inspect import getmembers, isclass
 
 import panel as pn
-from panel.custom import ReactComponent
+from panel.custom import ReactComponent, JSComponent
 import param
 #from typing import TypedDict, NotRequired
 from typing import TypedDict
@@ -1772,6 +1772,29 @@ def select_previous_detec(event=None):
     dataframe_explorer_widget.selection = [next_index]
     click_dataframe_explorer_widget()
 
+class KeyboardShortcut(JSComponent):
+    _esm =   """
+    export function render({ model }) {
+      const div = document.createElement('div');
+      // Listen to keydown globally
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'f' || event.key === 'F') {
+          model.send_event('f_key', event)
+        } else if (event.key === 's' || event.key === 'S') {
+          model.send_event('s_key', event)
+        }
+      });
+      return div;
+    }
+    """
+
+    def _handle_f_key(self, event):
+        select_next_detec()
+
+    def _handle_s_key(self, event):
+        select_previous_detec()
+
+keyboardshortcut = KeyboardShortcut()
 
 @pn.depends(class_label_widget, threshold_widget)
 def load_detections(class_label_widget, threshold_widget):
@@ -1851,7 +1874,7 @@ RAW_CSS = """
 """
 timezone_img = pn.pane.Image("images/time-zone_con_by_awicon.png",width=220)
 template = pn.template.BootstrapTemplate(
-    title="SoundScope", logo="images/SoundScopeLogo.png", favicon="images/favicon.ico",raw_css=[RAW_CSS]
+    title="SoundScope", logo="images/SoundScopeLogo.png", favicon="images/favicon.ico",raw_css=[RAW_CSS], sidebar=[keyboardshortcut]
 )  # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
 
 timezone_audio_recording_select = pn.widgets.Select(
@@ -2200,5 +2223,5 @@ previous_detec_button.on_click(select_previous_detec)
 # Serve Application
 logger.debug("Serving Panel Template..")
 template.servable()
-template.show(port=5006, threaded=True, websocket_origin="localhost:5006")
+# template.show(port=5006, threaded=True, websocket_origin="localhost:5006")
 
