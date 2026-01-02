@@ -70,10 +70,12 @@ from inspect import getmembers, isclass
 
 import panel as pn
 from panel.custom import ReactComponent, JSComponent
+from panel.widgets import Tabulator
 import param
 #from typing import TypedDict, NotRequired
 from typing import TypedDict
 from typing_extensions import NotRequired
+import io
 
 plt.ioff()
 
@@ -407,7 +409,8 @@ dataframe_explorer_widget = pn.widgets.Tabulator(
     pagination="remote",
 )
 #spectrogram_plot_pane = pn.pane.Matplotlib(name="Spectrogram", fixed_aspect=False, height=565,dpi=80)
-spectrogram_plot_pane = pn.pane.PNG('images/SoundScopeWelcome.png',height=565,)
+# spectrogram_plot_pane = pn.pane.PNG('images/SoundScopeWelcome.png',height=565,)
+spectrogram_plot_pane = pn.pane.Image('images/SoundScopeWelcome.png',height=565,)
 spectrogram_metadata_explorer = pn.widgets.Tabulator(
     name="Metadata",
     sizing_mode="stretch_width",
@@ -1490,25 +1493,35 @@ def spectrogram_plot(index=None):
         elapsed_time = end_time - start_time
         print(f"Elapsed time create spectro plot: {elapsed_time:.2f} seconds")
 
-        # Save spetro as png
+        # Create a buffer to hold the image
         start_time = time.perf_counter() # start timer
-        filename='selection_spectro' + '.jpg'
-        rasterize_and_save(filename,[ax], fig=fig, dpi=dpi)
-        # ax.set_rasterized(True)
-        # ax.set_rasterization_zorder(0)
-        # #plt.draw()
-        # fig.savefig(
-        #     filename,
-        #     transparent=False,
-        #     bbox_inches="tight",
-        #     dpi=100,
-        # )
-        #fig.canvas.draw()
-        #image = np.array(fig.canvas.renderer.buffer_rgba())
-        #cv2.imwrite(filename, cv2.cvtColor(image, cv2.COLOR_RGBA2BGR))
+        buf = io.BytesIO()
+        fig.savefig(buf, format='jpeg')
+        buf.seek(0) # Rewind the buffer
+        plt.close('all')
         end_time = time.perf_counter() # end timer
         elapsed_time = end_time - start_time
-        print(f"Elapsed time saving spectro plot to png: {elapsed_time:.2f} seconds")
+        print(f"Elapsed time saving spectro plot to jpeg: {elapsed_time:.2f} seconds")
+
+        # # Save spetro as png
+        # start_time = time.perf_counter() # start timer
+        # filename='selection_spectro' + '.jpg'
+        # rasterize_and_save(filename,[ax], fig=fig, dpi=dpi)
+        # # ax.set_rasterized(True)
+        # # ax.set_rasterization_zorder(0)
+        # # #plt.draw()
+        # # fig.savefig(
+        # #     filename,
+        # #     transparent=False,
+        # #     bbox_inches="tight",
+        # #     dpi=100,
+        # # )
+        # #fig.canvas.draw()
+        # #image = np.array(fig.canvas.renderer.buffer_rgba())
+        # #cv2.imwrite(filename, cv2.cvtColor(image, cv2.COLOR_RGBA2BGR))
+        # end_time = time.perf_counter() # end timer
+        # elapsed_time = end_time - start_time
+        # print(f"Elapsed time saving spectro plot to png: {elapsed_time:.2f} seconds")
 
         #graph.to_file('test' + ".png")
         #fig, ax = graph.show(display=False)  # Create a figure and axes object.
@@ -1520,8 +1533,9 @@ def spectrogram_plot(index=None):
 
         # Display spectro in UI
         start_time = time.perf_counter() # start timer
-        spectrogram_plot_pane.object = 'selection_spectro.jpg'
-        spectrogram_plot_pane.param.trigger("object")
+        # spectrogram_plot_pane.object = 'selection_spectro.jpg'
+        # spectrogram_plot_pane.param.trigger("object")
+        spectrogram_plot_pane.object = buf
         end_time = time.perf_counter() # end timer
         elapsed_time = end_time - start_time
         print(f"Elapsed time display spectro: {elapsed_time:.2f} seconds")
@@ -1622,7 +1636,7 @@ def load_dataframe_explorer_widget(
                     dataframe_explorer_widget.value = subselection.data[
                         ["label_class", "date", "confidence"]
                     ]
-
+                    dataframe_explorer_widget.selection = [0]
                     return dataframe_explorer_widget
 
                 except IndexError:
@@ -1633,17 +1647,23 @@ def click_dataframe_explorer_widget(event=None):
     global color_map_widget_spectrogram
 
     try:
-        if len(dataframe_explorer_widget.selection) == 0:
-            dataframe_explorer_widget.selection = [0]
+        if isinstance(event.obj, Tabulator):
+            selected_raw_index = event.obj.selection
+        else:
+            selected_raw_index = dataframe_explorer_widget.selection
 
-        selected_raw_index = int(
-            dataframe_explorer_widget.value.iloc[
-                dataframe_explorer_widget.selection[0]
-            ].name
-        )
-        print(f"Index of the detection selected: {selected_raw_index}")
-        print("s")
-        spectrogram_plot(index=selected_raw_index)
+        if selected_raw_index != [] and dataframe_explorer_widget.page_size != None:
+            dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
+            sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
+            sorted_index = sorted_dataframe_explorer_index_list.index(dataframe_explorer_index_list[selected_raw_index[0]])
+            target_page = (sorted_index // dataframe_explorer_widget.page_size) + 1
+            if dataframe_explorer_widget.page != target_page:
+                dataframe_explorer_widget.page = target_page
+
+            selected_raw_index = int(dataframe_explorer_widget.value.iloc[dataframe_explorer_widget.selection[0]].name)
+
+            print(f"Index of the detection selected: {selected_raw_index}")
+            spectrogram_plot(index=selected_raw_index)
 
     except IndexError:
         # dataframe_explorer_widget.selection = []
@@ -1755,22 +1775,30 @@ def stop_selected_sound(event=None):
         pass
 
 def select_next_detec(event=None):
-    selected = dataframe_explorer_widget.selection
-    if selected:
-        next_index = (selected[0] + 1) #% len(df)
+    if dataframe_explorer_widget.selection != []:
+        selected = dataframe_explorer_widget.selection[0]
+        dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
+        sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
+        df_index = dataframe_explorer_index_list[selected]
+        next_df_index = sorted_dataframe_explorer_index_list[sorted_dataframe_explorer_index_list.index(df_index)+1]
+        next_index = dataframe_explorer_index_list.index(next_df_index)
     else:
         next_index = 0
+
     dataframe_explorer_widget.selection = [next_index]
-    click_dataframe_explorer_widget()
 
 def select_previous_detec(event=None):
-    selected = dataframe_explorer_widget.selection
-    if selected:
-        next_index = (selected[0] - 1) #% len(df)
+    if dataframe_explorer_widget.selection != []:
+        selected = dataframe_explorer_widget.selection[0]
+        dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
+        sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
+        df_index = dataframe_explorer_index_list[selected]
+        next_df_index = sorted_dataframe_explorer_index_list[sorted_dataframe_explorer_index_list.index(df_index)-1]
+        next_index = dataframe_explorer_index_list.index(next_df_index)
     else:
         next_index = 0
+
     dataframe_explorer_widget.selection = [next_index]
-    click_dataframe_explorer_widget()
 
 class KeyboardShortcut(JSComponent):
     _esm =   """
@@ -1855,7 +1883,7 @@ watcher_heatmap = heatmap_tap.param.watch(
 )  # Watcher for heatmap tap events.
 # watcher_histogram = histogram_tap.param.watch(callback_histogram_selection, ['x','y'], onlychanged = False) # Watcher for heatmap tap events.
 
-dataframe_explorer_widget.on_click(click_dataframe_explorer_widget)
+dataframe_explorer_widget.param.watch(click_dataframe_explorer_widget, "selection")
 
 
 watcher_lineplot = lineplot_tap.param.watch(
