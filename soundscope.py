@@ -1636,7 +1636,11 @@ def load_dataframe_explorer_widget(
                     dataframe_explorer_widget.value = subselection.data[
                         ["label_class", "date", "confidence"]
                     ]
-                    dataframe_explorer_widget.selection = [0]
+
+                    dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
+                    sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
+                    first_dataframe_explorer_index = dataframe_explorer_index_list.index(sorted_dataframe_explorer_index_list[0])
+                    dataframe_explorer_widget.selection = [first_dataframe_explorer_index]
                     return dataframe_explorer_widget
 
                 except IndexError:
@@ -1777,28 +1781,71 @@ def stop_selected_sound(event=None):
 def select_next_detec(event=None):
     if dataframe_explorer_widget.selection != []:
         selected = dataframe_explorer_widget.selection[0]
+
+        '''
+        dataframe_explorer_index_list -> a list of index from dataframe_explorer_widget: [1,2,3,4,5]
+        sorted_dataframe_explorer_index_list -> a list of sorted index currently displayed: [3,4,5,1,2]
+
+        dataframe_explorer_selected_value -> find the current selected value using index position: [1,2,3,4,5][3]=4
+        sorted_dataframe_explorer_selected_index -> get the position of dataframe_explorer_selected_value within the sorted index list: [3,4,5,1,2].index(4)=1
+        
+        if sorted_dataframe_explorer_selected_index+1 < len(dataframe_explorer_index_list)
+            next_sorted_dataframe_explorer_value -> get the next value within the sorted index list: [3,4,5,1,2][1+1]=5
+            next_dataframe_explorer_index -> get the position of next_sorted_dataframe_explorer_index within the index list: [1,2,3,4,5].index(5)=4
+        else
+            next_dataframe_explorer_index = selected
+        '''
+
         dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
         sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
-        df_index = dataframe_explorer_index_list[selected]
-        next_df_index = sorted_dataframe_explorer_index_list[sorted_dataframe_explorer_index_list.index(df_index)+1]
-        next_index = dataframe_explorer_index_list.index(next_df_index)
-    else:
-        next_index = 0
 
-    dataframe_explorer_widget.selection = [next_index]
+        dataframe_explorer_selected_value = dataframe_explorer_index_list[selected]
+        sorted_dataframe_explorer_selected_index = sorted_dataframe_explorer_index_list.index(dataframe_explorer_selected_value)
+
+        if sorted_dataframe_explorer_selected_index+1 < len(dataframe_explorer_index_list):
+            next_sorted_dataframe_explorer_value = sorted_dataframe_explorer_index_list[sorted_dataframe_explorer_selected_index+1]
+            next_dataframe_explorer_index = dataframe_explorer_index_list.index(next_sorted_dataframe_explorer_value)
+        else:
+            next_dataframe_explorer_index = selected
+    else:
+        next_dataframe_explorer_index = 0
+
+    dataframe_explorer_widget.selection = [next_dataframe_explorer_index]
 
 def select_previous_detec(event=None):
     if dataframe_explorer_widget.selection != []:
         selected = dataframe_explorer_widget.selection[0]
+
+        '''
+        dataframe_explorer_index_list -> a list of index from dataframe_explorer_widget: [1,2,3,4,5]
+        sorted_dataframe_explorer_index_list -> a list of sorted index currently displayed: [3,4,5,1,2]
+
+        dataframe_explorer_selected_value -> find the current selected value using index position: [1,2,3,4,5][3]=4
+        sorted_dataframe_explorer_selected_index -> get the position of dataframe_explorer_selected_value within the sorted index list: [3,4,5,1,2].index(4)=1
+        
+        if sorted_dataframe_explorer_selected_index-1 >= 0
+            next_sorted_dataframe_explorer_value -> get the next value within the sorted index list: [3,4,5,1,2][1-1]=3
+            next_dataframe_explorer_index -> get the position of next_sorted_dataframe_explorer_index within the index list: [1,2,3,4,5].index(3)=2
+        else
+            next_dataframe_explorer_index = selected
+        '''
+
         dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
         sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
-        df_index = dataframe_explorer_index_list[selected]
-        next_df_index = sorted_dataframe_explorer_index_list[sorted_dataframe_explorer_index_list.index(df_index)-1]
-        next_index = dataframe_explorer_index_list.index(next_df_index)
-    else:
-        next_index = 0
 
-    dataframe_explorer_widget.selection = [next_index]
+        dataframe_explorer_selected_value = dataframe_explorer_index_list[selected]
+        sorted_dataframe_explorer_selected_index = sorted_dataframe_explorer_index_list.index(dataframe_explorer_selected_value)
+
+        if sorted_dataframe_explorer_selected_index-1 >= 0:
+            next_sorted_dataframe_explorer_value = sorted_dataframe_explorer_index_list[sorted_dataframe_explorer_selected_index-1]
+            next_dataframe_explorer_index = dataframe_explorer_index_list.index(next_sorted_dataframe_explorer_value)
+        else:
+            next_dataframe_explorer_index = selected
+    else:
+        next_dataframe_explorer_index = 0
+
+    dataframe_explorer_widget.selection = [next_dataframe_explorer_index]
+
 
 class KeyboardShortcut(JSComponent):
     _esm =   """
