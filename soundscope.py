@@ -69,11 +69,13 @@ import logging
 from inspect import getmembers, isclass
 
 import panel as pn
-from panel.custom import ReactComponent
+from panel.custom import ReactComponent, JSComponent
+from panel.widgets import Tabulator
 import param
 #from typing import TypedDict, NotRequired
 from typing import TypedDict
 from typing_extensions import NotRequired
+import io
 
 plt.ioff()
 
@@ -407,7 +409,8 @@ dataframe_explorer_widget = pn.widgets.Tabulator(
     pagination="remote",
 )
 #spectrogram_plot_pane = pn.pane.Matplotlib(name="Spectrogram", fixed_aspect=False, height=565,dpi=80)
-spectrogram_plot_pane = pn.pane.PNG('images/SoundScopeWelcome.png',height=565,)
+# spectrogram_plot_pane = pn.pane.PNG('images/SoundScopeWelcome.png',height=565,)
+spectrogram_plot_pane = pn.pane.Image('images/SoundScopeWelcome.png',height=565,)
 spectrogram_metadata_explorer = pn.widgets.Tabulator(
     name="Metadata",
     sizing_mode="stretch_width",
@@ -1490,25 +1493,35 @@ def spectrogram_plot(index=None):
         elapsed_time = end_time - start_time
         print(f"Elapsed time create spectro plot: {elapsed_time:.2f} seconds")
 
-        # Save spetro as png
+        # Create a buffer to hold the image
         start_time = time.perf_counter() # start timer
-        filename='selection_spectro' + '.jpg'
-        rasterize_and_save(filename,[ax], fig=fig, dpi=dpi)
-        # ax.set_rasterized(True)
-        # ax.set_rasterization_zorder(0)
-        # #plt.draw()
-        # fig.savefig(
-        #     filename,
-        #     transparent=False,
-        #     bbox_inches="tight",
-        #     dpi=100,
-        # )
-        #fig.canvas.draw()
-        #image = np.array(fig.canvas.renderer.buffer_rgba())
-        #cv2.imwrite(filename, cv2.cvtColor(image, cv2.COLOR_RGBA2BGR))
+        buf = io.BytesIO()
+        fig.savefig(buf, format='jpeg')
+        buf.seek(0) # Rewind the buffer
+        plt.close('all')
         end_time = time.perf_counter() # end timer
         elapsed_time = end_time - start_time
-        print(f"Elapsed time saving spectro plot to png: {elapsed_time:.2f} seconds")
+        print(f"Elapsed time saving spectro plot to jpeg: {elapsed_time:.2f} seconds")
+
+        # # Save spetro as png
+        # start_time = time.perf_counter() # start timer
+        # filename='selection_spectro' + '.jpg'
+        # rasterize_and_save(filename,[ax], fig=fig, dpi=dpi)
+        # # ax.set_rasterized(True)
+        # # ax.set_rasterization_zorder(0)
+        # # #plt.draw()
+        # # fig.savefig(
+        # #     filename,
+        # #     transparent=False,
+        # #     bbox_inches="tight",
+        # #     dpi=100,
+        # # )
+        # #fig.canvas.draw()
+        # #image = np.array(fig.canvas.renderer.buffer_rgba())
+        # #cv2.imwrite(filename, cv2.cvtColor(image, cv2.COLOR_RGBA2BGR))
+        # end_time = time.perf_counter() # end timer
+        # elapsed_time = end_time - start_time
+        # print(f"Elapsed time saving spectro plot to png: {elapsed_time:.2f} seconds")
 
         #graph.to_file('test' + ".png")
         #fig, ax = graph.show(display=False)  # Create a figure and axes object.
@@ -1520,8 +1533,9 @@ def spectrogram_plot(index=None):
 
         # Display spectro in UI
         start_time = time.perf_counter() # start timer
-        spectrogram_plot_pane.object = 'selection_spectro.jpg'
-        spectrogram_plot_pane.param.trigger("object")
+        # spectrogram_plot_pane.object = 'selection_spectro.jpg'
+        # spectrogram_plot_pane.param.trigger("object")
+        spectrogram_plot_pane.object = buf
         end_time = time.perf_counter() # end timer
         elapsed_time = end_time - start_time
         print(f"Elapsed time display spectro: {elapsed_time:.2f} seconds")
@@ -1623,6 +1637,10 @@ def load_dataframe_explorer_widget(
                         ["label_class", "date", "confidence"]
                     ]
 
+                    dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
+                    sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
+                    first_dataframe_explorer_index = dataframe_explorer_index_list.index(sorted_dataframe_explorer_index_list[0])
+                    dataframe_explorer_widget.selection = [first_dataframe_explorer_index]
                     return dataframe_explorer_widget
 
                 except IndexError:
@@ -1633,17 +1651,23 @@ def click_dataframe_explorer_widget(event=None):
     global color_map_widget_spectrogram
 
     try:
-        if len(dataframe_explorer_widget.selection) == 0:
-            dataframe_explorer_widget.selection = [0]
+        if isinstance(event.obj, Tabulator):
+            selected_raw_index = event.obj.selection
+        else:
+            selected_raw_index = dataframe_explorer_widget.selection
 
-        selected_raw_index = int(
-            dataframe_explorer_widget.value.iloc[
-                dataframe_explorer_widget.selection[0]
-            ].name
-        )
-        print(f"Index of the detection selected: {selected_raw_index}")
-        print("s")
-        spectrogram_plot(index=selected_raw_index)
+        if selected_raw_index != [] and dataframe_explorer_widget.page_size != None:
+            dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
+            sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
+            sorted_index = sorted_dataframe_explorer_index_list.index(dataframe_explorer_index_list[selected_raw_index[0]])
+            target_page = (sorted_index // dataframe_explorer_widget.page_size) + 1
+            if dataframe_explorer_widget.page != target_page:
+                dataframe_explorer_widget.page = target_page
+
+            selected_raw_index = int(dataframe_explorer_widget.value.iloc[dataframe_explorer_widget.selection[0]].name)
+
+            print(f"Index of the detection selected: {selected_raw_index}")
+            spectrogram_plot(index=selected_raw_index)
 
     except IndexError:
         # dataframe_explorer_widget.selection = []
@@ -1755,23 +1779,97 @@ def stop_selected_sound(event=None):
         pass
 
 def select_next_detec(event=None):
-    selected = dataframe_explorer_widget.selection
-    if selected:
-        next_index = (selected[0] + 1) #% len(df)
+    if dataframe_explorer_widget.selection != []:
+        selected = dataframe_explorer_widget.selection[0]
+
+        '''
+        dataframe_explorer_index_list -> a list of index from dataframe_explorer_widget: [1,2,3,4,5]
+        sorted_dataframe_explorer_index_list -> a list of sorted index currently displayed: [3,4,5,1,2]
+
+        dataframe_explorer_selected_value -> find the current selected value using index position: [1,2,3,4,5][3]=4
+        sorted_dataframe_explorer_selected_index -> get the position of dataframe_explorer_selected_value within the sorted index list: [3,4,5,1,2].index(4)=1
+        
+        if sorted_dataframe_explorer_selected_index+1 < len(dataframe_explorer_index_list)
+            next_sorted_dataframe_explorer_value -> get the next value within the sorted index list: [3,4,5,1,2][1+1]=5
+            next_dataframe_explorer_index -> get the position of next_sorted_dataframe_explorer_index within the index list: [1,2,3,4,5].index(5)=4
+        else
+            next_dataframe_explorer_index = selected
+        '''
+
+        dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
+        sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
+
+        dataframe_explorer_selected_value = dataframe_explorer_index_list[selected]
+        sorted_dataframe_explorer_selected_index = sorted_dataframe_explorer_index_list.index(dataframe_explorer_selected_value)
+
+        if sorted_dataframe_explorer_selected_index+1 < len(dataframe_explorer_index_list):
+            next_sorted_dataframe_explorer_value = sorted_dataframe_explorer_index_list[sorted_dataframe_explorer_selected_index+1]
+            next_dataframe_explorer_index = dataframe_explorer_index_list.index(next_sorted_dataframe_explorer_value)
+        else:
+            next_dataframe_explorer_index = selected
     else:
-        next_index = 0
-    dataframe_explorer_widget.selection = [next_index]
-    click_dataframe_explorer_widget()
+        next_dataframe_explorer_index = 0
+
+    dataframe_explorer_widget.selection = [next_dataframe_explorer_index]
 
 def select_previous_detec(event=None):
-    selected = dataframe_explorer_widget.selection
-    if selected:
-        next_index = (selected[0] - 1) #% len(df)
-    else:
-        next_index = 0
-    dataframe_explorer_widget.selection = [next_index]
-    click_dataframe_explorer_widget()
+    if dataframe_explorer_widget.selection != []:
+        selected = dataframe_explorer_widget.selection[0]
 
+        '''
+        dataframe_explorer_index_list -> a list of index from dataframe_explorer_widget: [1,2,3,4,5]
+        sorted_dataframe_explorer_index_list -> a list of sorted index currently displayed: [3,4,5,1,2]
+
+        dataframe_explorer_selected_value -> find the current selected value using index position: [1,2,3,4,5][3]=4
+        sorted_dataframe_explorer_selected_index -> get the position of dataframe_explorer_selected_value within the sorted index list: [3,4,5,1,2].index(4)=1
+        
+        if sorted_dataframe_explorer_selected_index-1 >= 0
+            next_sorted_dataframe_explorer_value -> get the next value within the sorted index list: [3,4,5,1,2][1-1]=3
+            next_dataframe_explorer_index -> get the position of next_sorted_dataframe_explorer_index within the index list: [1,2,3,4,5].index(3)=2
+        else
+            next_dataframe_explorer_index = selected
+        '''
+
+        dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
+        sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
+
+        dataframe_explorer_selected_value = dataframe_explorer_index_list[selected]
+        sorted_dataframe_explorer_selected_index = sorted_dataframe_explorer_index_list.index(dataframe_explorer_selected_value)
+
+        if sorted_dataframe_explorer_selected_index-1 >= 0:
+            next_sorted_dataframe_explorer_value = sorted_dataframe_explorer_index_list[sorted_dataframe_explorer_selected_index-1]
+            next_dataframe_explorer_index = dataframe_explorer_index_list.index(next_sorted_dataframe_explorer_value)
+        else:
+            next_dataframe_explorer_index = selected
+    else:
+        next_dataframe_explorer_index = 0
+
+    dataframe_explorer_widget.selection = [next_dataframe_explorer_index]
+
+
+class KeyboardShortcut(JSComponent):
+    _esm =   """
+    export function render({ model }) {
+      const div = document.createElement('div');
+      // Listen to keydown globally
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'f' || event.key === 'F') {
+          model.send_event('f_key', event)
+        } else if (event.key === 's' || event.key === 'S') {
+          model.send_event('s_key', event)
+        }
+      });
+      return div;
+    }
+    """
+
+    def _handle_f_key(self, event):
+        select_next_detec()
+
+    def _handle_s_key(self, event):
+        select_previous_detec()
+
+keyboardshortcut = KeyboardShortcut()
 
 @pn.depends(class_label_widget, threshold_widget)
 def load_detections(class_label_widget, threshold_widget):
@@ -1832,7 +1930,7 @@ watcher_heatmap = heatmap_tap.param.watch(
 )  # Watcher for heatmap tap events.
 # watcher_histogram = histogram_tap.param.watch(callback_histogram_selection, ['x','y'], onlychanged = False) # Watcher for heatmap tap events.
 
-dataframe_explorer_widget.on_click(click_dataframe_explorer_widget)
+dataframe_explorer_widget.param.watch(click_dataframe_explorer_widget, "selection")
 
 
 watcher_lineplot = lineplot_tap.param.watch(
@@ -1851,7 +1949,7 @@ RAW_CSS = """
 """
 timezone_img = pn.pane.Image("images/time-zone_con_by_awicon.png",width=220)
 template = pn.template.BootstrapTemplate(
-    title="SoundScope", logo="images/SoundScopeLogo.png", favicon="images/favicon.ico",raw_css=[RAW_CSS]
+    title="SoundScope", logo="images/SoundScopeLogo.png", favicon="images/favicon.ico",raw_css=[RAW_CSS], sidebar=[keyboardshortcut]
 )  # Basic 'Bootstrap' template object for python3 Panel lib. Ref : https://panel.holoviz.org/reference/templates/Bootstrap.html
 
 timezone_audio_recording_select = pn.widgets.Select(
