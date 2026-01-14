@@ -53,6 +53,10 @@ If you want new functionalities to be added to SoundScope, add an entry to the [
 thumbs-up emoji (👍) to boost the priority of a new features.
 
 # Versions
+### version 20260113
+- Bug fixes (issues #21, #24, #25, #26)
+- Added keyboard shortcuts for go to the previous (s) and next (f) detections
+
 ### version 20250905
 - Added option to display spectrograms with fixed or adpative frequency boundaries
 - Added "Next" and "Previous" button to browse through detections more easily
