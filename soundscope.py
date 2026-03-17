@@ -1098,6 +1098,30 @@ def callback_heatmap_selection(*events):
     except:
         logger.error("Please click inside the heatmap. This is a patch made for soundscope.")
 
+def previous_hour_detec(event):
+    start, end = datetime_range_picker.value
+    new_start = start - pd.Timedelta(hours=1)
+    new_end = start - pd.Timedelta(seconds=1)
+    datetime_range_picker.value = (new_start, new_end)
+
+def next_hour_detec(event):
+    start, end = datetime_range_picker.value
+    new_start = end + pd.Timedelta(seconds=1)
+    new_end = end + pd.Timedelta(hours=1)
+    datetime_range_picker.value = (new_start, new_end)
+
+def previous_day_detec(event):
+    start, end = datetime_range_picker.value
+    new_start = start - pd.Timedelta(days=1)
+    new_end = start - pd.Timedelta(seconds=1)
+    datetime_range_picker.value = (new_start, new_end)
+
+def next_day_detec(event):
+    start, end = datetime_range_picker.value
+    new_start = end + pd.Timedelta(seconds=1)
+    new_end = end + pd.Timedelta(days=1)
+    datetime_range_picker.value = (new_start, new_end)
+
 def callback_histogram_selection(*events):
     """_summary_
 
@@ -2068,7 +2092,38 @@ download_csv_daily_button = pn.widgets.Button(
     #height=20,
 )
 
+previous_hour_detec_button = pn.widgets.Button(
+    icon="chevron-left",
+    name="Previous Hour",
+    button_type="primary",
+    width=95,
+    align='center',
+)
 
+next_hour_detec_button = pn.widgets.Button(
+    icon="chevron-right",
+    name="Next Hour",
+    button_type="primary",
+    width=80,
+    align='center',
+)
+
+previous_day_detec_button = pn.widgets.Button(
+    icon="chevron-left",
+    name="Previous Day",
+    button_type="primary",
+    width=100,
+    align='center',
+    margin=(0, 0, 0, 30),
+)
+
+next_day_detec_button = pn.widgets.Button(
+    icon="chevron-right",
+    name="Next Day",
+    button_type="primary",
+    width=80,
+    align='center',
+)
 
 # next_detec_button._id = 'my-button'  # Assign a unique ID
 
@@ -2208,7 +2263,7 @@ top_panel_tabs = pn.Tabs(
         pn.WidgetBox(
             pn.Column(
                 #pn.Row(color_map_widget_plot2D, integration_time_widget, download_csv_hourly_button), create_2D_plot
-                pn.Row(download_csv_hourly_button,color_map_widget_plot2D,analysis_timezone_text,align=('end','end')), create_2D_plot
+                pn.Row(download_csv_hourly_button,color_map_widget_plot2D,previous_hour_detec_button,next_hour_detec_button,analysis_timezone_text,align=('end','end')), create_2D_plot
             ),
             disabled=False,
             margin=(10, 10),
@@ -2221,7 +2276,7 @@ top_panel_tabs.append(
         "Daily Detections",
         pn.WidgetBox(
             pn.Column(
-                pn.Row( download_csv_daily_button,analysis_timezone_text), create_1D_plot
+                pn.Row( download_csv_daily_button,previous_day_detec_button,next_day_detec_button,analysis_timezone_text), create_1D_plot
             ),
             disabled=False,
             margin=(10, 10),
@@ -2290,6 +2345,11 @@ apply_spectro_settings_button.on_click(click_dataframe_explorer_widget)
 
 next_detec_button.on_click(select_next_detec)
 previous_detec_button.on_click(select_previous_detec)
+
+previous_hour_detec_button.on_click(previous_hour_detec)
+next_hour_detec_button.on_click(next_hour_detec)
+previous_day_detec_button.on_click(previous_day_detec)
+next_day_detec_button.on_click(next_day_detec)
 
 #next_detec_button.js_on_load(code=js_code)
 
