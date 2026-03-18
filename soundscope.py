@@ -186,6 +186,7 @@ global final_datetime
 global datetime_range_picker
 global dataframe_explorer_widget
 global dataframe_explorer_widget_locked
+global last_plotted_index
 global spectrogram_plot_pane
 global spectrogram_metadata_explorer
 global selected_sound
@@ -404,9 +405,33 @@ dataframe_explorer_widget = pn.widgets.Tabulator(
     selectable=1,
     value=active_data.data,
     height=655,
-    disabled=True,
+    disabled=False,
     selection=[0],
     pagination="remote",
+    editors={
+        "label_class": None,
+        "date": None,
+        "confidence": None,
+        "Y": None,
+        "N": None,
+        "M": None,
+    },
+    formatters={
+        "Y": {"type": "tickCross", "crossElement": ""},
+        "N": {"type": "tickCross", "crossElement": ""},
+        "M": {"type": "tickCross", "crossElement": ""},
+    },
+    text_align={
+        "confidence": "center",
+    },
+    header_align={
+        "label_class": "center",
+        "date": "center",
+        "confidence": "center",
+        "Y": "center",
+        "N": "center",
+        "M": "center",
+    },
 )
 #spectrogram_plot_pane = pn.pane.Matplotlib(name="Spectrogram", fixed_aspect=False, height=565,dpi=80)
 # spectrogram_plot_pane = pn.pane.PNG('images/SoundScopeWelcome.png',height=565,)
@@ -426,6 +451,7 @@ datetime_range_picker = pn.widgets.DatetimeRangePicker(
     name="Datetime Range Selection", sizing_mode="stretch_width"
 )
 dataframe_explorer_widget_locked = True
+last_plotted_index = None
 
 def rasterize_and_save(fname, rasterize_list=None, fig=None, dpi=None,
                        savefig_kw={}):
@@ -574,6 +600,10 @@ def load_dataset(data_file):
         success_notification("Dataset successfully loaded!")
         # apply time zone offset
         dataset = apply_time_offset(dataset, TZ_offset)
+        # add Y/N/M review columns if not already present
+        for col in ["Y", "N", "M"]:
+            if col not in dataset.data.columns:
+                dataset.data[col] = False
         # update class labels in widget
         update_class_label_widget()
 
@@ -586,6 +616,10 @@ def load_dataset(data_file):
             success_notification("Dataset loaded!")
             # apply time zone offset
             dataset = apply_time_offset(dataset, TZ_offset)
+            # add Y/N/M review columns if not already present
+            for col in ["Y", "N", "M"]:
+                if col not in dataset.data.columns:
+                    dataset.data[col] = False
             # update class labels in widget
             update_class_label_widget()
             # update text with analysis time zone
@@ -674,6 +708,7 @@ def update_active_data(widget_name):
     global final_datetime
     global datetime_range_picker
     global dataframe_explorer_widget
+    global last_plotted_index
 
     if len(list(data_file_name)) > 0:
         logger.debug("Updating active data object..")
@@ -703,6 +738,7 @@ def update_active_data(widget_name):
             dataset.data["date"].min(),
             dataset.data["date"].max(),
         )
+        last_plotted_index = None
         dataframe_explorer_widget.selection = [0]
         # load_dataframe_explorer_widget(datetime_range_picker)
 
@@ -1657,9 +1693,12 @@ def load_dataframe_explorer_widget(
                 # dataframe_explorer_widget.value = subselection.data[['date', 'confidence', 'label_class', 'audio_file_dir', 'audio_file_name', 'hydrophone_SN']]
 
                 try:
-                    dataframe_explorer_widget.value = subselection.data[
+                    df = subselection.data[
                         ["label_class", "date", "confidence"]
-                    ]
+                    ].copy()
+                    for col in ["Y", "N", "M"]:
+                        df[col] = subselection.data[col] if col in subselection.data.columns else False
+                    dataframe_explorer_widget.value = df
 
                     dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
                     sorted_dataframe_explorer_index_list = dataframe_explorer_widget.current_view.index.tolist()
@@ -1673,6 +1712,7 @@ def load_dataframe_explorer_widget(
 
 def click_dataframe_explorer_widget(event=None):
     global color_map_widget_spectrogram
+    global last_plotted_index
 
     try:
         if isinstance(event.obj, Tabulator):
@@ -1690,6 +1730,10 @@ def click_dataframe_explorer_widget(event=None):
 
             selected_raw_index = int(dataframe_explorer_widget.value.iloc[dataframe_explorer_widget.selection[0]].name)
 
+            if selected_raw_index == last_plotted_index:
+                return
+
+            last_plotted_index = selected_raw_index
             print(f"Index of the detection selected: {selected_raw_index}")
             spectrogram_plot(index=selected_raw_index)
 
@@ -1700,6 +1744,14 @@ def click_dataframe_explorer_widget(event=None):
 def save_hourly_csv_file(event=None):
     filename = show_save_file_dialog(filename='hourly_detection_summary.csv', extension='.csv')
     aggregate_1H = active_data.calc_time_aggregate_1D(integration_time='1H')
+    # Build a full hourly range covering the entire dataset (not just the
+    # datetime filter) so hours with 0 detections at the start and end are included
+    full_range = pd.date_range(
+        start=dataset.data["date"].min().floor('D'),
+        end=dataset.data["date"].max().floor('h'),
+        freq='1H',
+    )
+    aggregate_1H = aggregate_1H.reindex(full_range, fill_value=0)
     start_time_an = aggregate_1H.index
     end_time_an = start_time_an + pd.Timedelta(1,unit='h')
     start_time_rec = start_time_an - pd.Timedelta(TZ_offset,unit='h')
@@ -1925,6 +1977,9 @@ def save_nc_file(event):
     #global selected_sound
     filename_tmp = data_file_name
     filename = show_save_file_dialog(filename=filename_tmp, extension='.nc')
+    # Replace empty strings with NaN in numeric columns to prevent type-cast
+    # errors during netCDF serialization (e.g. hydrophone_depth = '')
+    dataset.data.replace('', float('nan'), inplace=True)
     dataset.to_netcdf(filename)
     success_notification('File saved successfully')
 
@@ -1955,6 +2010,91 @@ watcher_heatmap = heatmap_tap.param.watch(
 # watcher_histogram = histogram_tap.param.watch(callback_histogram_selection, ['x','y'], onlychanged = False) # Watcher for heatmap tap events.
 
 dataframe_explorer_widget.param.watch(click_dataframe_explorer_widget, "selection")
+
+
+def enforce_checkbox_mutual_exclusivity(event):
+    """Ensure only one of Y, N, M is checked per row."""
+    global dataframe_explorer_widget
+    if dataframe_explorer_widget.value is None:
+        return
+    checkbox_cols = ["Y", "N", "M"]
+    if not all(c in dataframe_explorer_widget.value.columns for c in checkbox_cols):
+        return
+
+    old_df = event.old
+    new_df = event.new
+
+    if old_df is None or old_df.empty:
+        return
+
+    try:
+        changed_rows = new_df.index[
+            (new_df[checkbox_cols] != old_df[checkbox_cols]).any(axis=1)
+        ]
+    except Exception:
+        return
+
+    if changed_rows.empty:
+        return
+
+    updated_df = new_df.copy()
+    for idx in changed_rows:
+        for col in checkbox_cols:
+            if new_df.at[idx, col] and not old_df.at[idx, col]:
+                # This column was just checked — uncheck the other two
+                for other_col in checkbox_cols:
+                    if other_col != col:
+                        updated_df.at[idx, other_col] = False
+                break  # Only one column can change at a time
+
+    if not updated_df.equals(new_df):
+        dataframe_explorer_widget.value = updated_df
+
+
+dataframe_explorer_widget.param.watch(enforce_checkbox_mutual_exclusivity, "value")
+
+
+def sync_checkbox_to_dataset(event):
+    """Sync Y/N/M checkbox values from the widget back to dataset.data.
+
+    This ensures any checkbox changes made in the table are persisted in the
+    master dataset object. When the user saves via save_nc_file(), the updated
+    Y/N/M columns will be included in the .nc file automatically.
+
+    On next load, load_dataset() will detect the existing Y/N/M columns and
+    preserve their values rather than resetting them to False.
+    """
+    global dataset
+    if dataset is None or event.new is None:
+        return
+    checkbox_cols = ["Y", "N", "M"]
+    if not all(c in event.new.columns for c in checkbox_cols):
+        return
+    if not all(c in dataset.data.columns for c in checkbox_cols):
+        return
+    # Use the widget DataFrame's pandas index to update only the rows
+    # currently displayed (preserving checkbox states for rows not in view)
+    for col in checkbox_cols:
+        dataset.data.loc[event.new.index, col] = event.new[col].values
+
+
+dataframe_explorer_widget.param.watch(sync_checkbox_to_dataset, "value")
+
+
+def on_checkbox_click(event):
+    """Toggle Y/N/M checkbox on single cell click, only if the row is selected."""
+    if event.column not in ["Y", "N", "M"]:
+        return
+    if dataframe_explorer_widget.value is None:
+        return
+    if event.row not in dataframe_explorer_widget.selection:
+        return
+    df = dataframe_explorer_widget.value.copy()
+    df.iloc[event.row, df.columns.get_loc(event.column)] = not df.iloc[event.row][event.column]
+    dataframe_explorer_widget.value = df
+
+
+dataframe_explorer_widget.on_click(on_checkbox_click)
 
 
 watcher_lineplot = lineplot_tap.param.watch(
@@ -2317,7 +2457,7 @@ bottom_panel = pn.Row(
         load_dataframe_explorer_widget,
         disabled=False,
         margin=(45, 10, 10, 10),
-        width=515,
+        width=660,
     ),
 )
 
