@@ -968,7 +968,7 @@ def get_histogram_tap_date():
     return histogram_tap_date
 
 
-def callback_heatmap_selection(*events):
+def callback_heatmap_selection(*_events):
     """_summary_
 
     Returns:
@@ -985,15 +985,17 @@ def callback_heatmap_selection(*events):
     Need to get an array of datetime objects for a selected day. We need the boundary conditions for the selected hour as a list or tuple.
     """
     try:
+        tap_x = heatmap_tap.x
+        tap_y = heatmap_tap.y
         selected_year = (
-            str(events[0][2].x).split("T")[0].split("-")[0]
+            str(tap_x).split("T")[0].split("-")[0]
         )  # This will happen when histogram cell is clicked.
-        selected_month = str(events[0][2].x).split("T")[0].split("-")[1]
-        selected_day = str(events[0][2].x).split("T")[0].split("-")[2]
+        selected_month = str(tap_x).split("T")[0].split("-")[1]
+        selected_day = str(tap_x).split("T")[0].split("-")[2]
 
-        selected_hour = str(events[0][2].y).split(".")[0]
-        selected_minute = str(events[0][2].y).split(".")[1]
-        base_ten_minute = float("0." + str(events[0][2].y).split(".")[1])
+        selected_hour = str(tap_y).split(".")[0]
+        selected_minute = str(tap_y).split(".")[1]
+        base_ten_minute = float("0." + str(tap_y).split(".")[1])
         base_ten_time = float(selected_hour + "." + selected_minute)
 
         logger.debug("selectied hour : " + str(selected_hour))
@@ -1134,29 +1136,170 @@ def callback_heatmap_selection(*events):
     except:
         logger.error("Please click inside the heatmap. This is a patch made for soundscope.")
 
+# Hidden widget used to pass target date/hour to the JS click simulator.
+# Its jscallback fires client-side whenever the value changes.
+heatmap_click_trigger = pn.widgets.TextInput(value="", styles={'display': 'none'})
+heatmap_click_trigger.jscallback(
+    value="""
+(function() {
+    const parts = cb_obj.value.split(',');
+    if (parts.length < 2) return;
+    const target_date = parts[0];
+    const target_hour = parseInt(parts[1]);
+
+    // Find the heatmap ColumnDataSource — it has 'columns' (date strings) and 'index' (hours).
+    let heatmap_source = null;
+    try {
+        const doc = Bokeh.documents[0];
+        const entries = doc._all_models instanceof Map
+            ? doc._all_models.entries()
+            : Object.entries(doc._all_models || {});
+        for (const [id, model] of entries) {
+            const d = model.data;
+            if (d && d['columns'] !== undefined && d['index'] !== undefined) {
+                heatmap_source = model;
+                break;
+            }
+        }
+    } catch(e) { console.warn('SoundScope: model search failed', e); return; }
+
+    if (!heatmap_source) {
+        console.warn('SoundScope: heatmap ColumnDataSource not found');
+        return;
+    }
+
+    const dates = heatmap_source.data['columns'];
+    const hours = heatmap_source.data['index'];
+
+    let indices = [];
+    if (target_hour === -1) {
+        // Day view: select all cells belonging to this date
+        for (let i = 0; i < dates.length; i++) {
+            if (String(dates[i]).startsWith(target_date)) indices.push(i);
+        }
+    } else {
+        // Hour view: select the single matching cell
+        for (let i = 0; i < dates.length; i++) {
+            if (String(dates[i]).startsWith(target_date) && parseInt(hours[i]) === target_hour) {
+                indices = [i];
+                break;
+            }
+        }
+    }
+
+    if (indices.length === 0) {
+        console.warn('SoundScope: no heatmap cell found for', target_date, target_hour);
+        return;
+    }
+
+    // Update the selection — triggers nonselection_alpha greying on all other cells
+    heatmap_source.selected.indices = indices;
+    heatmap_source.change.emit();
+})();
+""")
+
+histogram_click_trigger = pn.widgets.TextInput(value="", styles={'display': 'none'})
+histogram_click_trigger.jscallback(
+    value="""
+(function() {
+    const parts = cb_obj.value.split(',');
+    if (parts.length < 2) return;
+    const target_date = parts[0];  // 'YYYY-MM-DD'
+
+    // Find the daily bar chart ColumnDataSource.
+    // It has a 'value' column but NOT 'columns'/'index'/'zvalues' (heatmap keys).
+    let bar_source = null;
+    try {
+        const doc = Bokeh.documents[0];
+        const entries = doc._all_models instanceof Map
+            ? doc._all_models.entries()
+            : Object.entries(doc._all_models || {});
+        for (const [id, model] of entries) {
+            const d = model.data;
+            if (!d || typeof d !== 'object') continue;
+            const keys = Object.keys(d);
+            // Bar chart has 'value' column and no heatmap-specific columns
+            if (keys.includes('value') && !keys.includes('zvalues') && !keys.includes('index')) {
+                bar_source = model;
+                break;
+            }
+        }
+    } catch(e) { console.warn('SoundScope histogram: model search failed', e); return; }
+
+    if (!bar_source) {
+        console.warn('SoundScope histogram: bar chart ColumnDataSource not found');
+        return;
+    }
+
+    // Find which key holds the x-axis (datetime timestamps as large numbers)
+    const d = bar_source.data;
+    const keys = Object.keys(d);
+    let x_key = null;
+    for (const k of keys) {
+        const arr = d[k];
+        if (!arr || !arr.length) continue;
+        // Datetime in Bokeh is stored as ms since epoch — large numbers
+        if (typeof arr[0] === 'number' && arr[0] > 1e9) { x_key = k; break; }
+    }
+    if (!x_key) {
+        console.warn('SoundScope histogram: could not find x datetime column', keys);
+        return;
+    }
+
+    // Find the row whose date matches target_date
+    const x_arr = d[x_key];
+    let match_idx = -1;
+    for (let i = 0; i < x_arr.length; i++) {
+        const row_date = new Date(x_arr[i]).toISOString().slice(0, 10);
+        if (row_date === target_date) { match_idx = i; break; }
+    }
+
+    if (match_idx < 0) {
+        console.warn('SoundScope histogram: no bar found for', target_date);
+        return;
+    }
+
+    bar_source.selected.indices = [match_idx];
+    bar_source.change.emit();
+})();
+""")
+
+
 def previous_hour_detec(event):
     start, end = datetime_range_picker.value
     new_start = start - pd.Timedelta(hours=1)
     new_end = start - pd.Timedelta(seconds=1)
     datetime_range_picker.value = (new_start, new_end)
+    import time as _time
+    heatmap_click_trigger.value = f"{new_start.strftime('%Y-%m-%d')},{new_start.hour},{_time.time()}"
 
 def next_hour_detec(event):
     start, end = datetime_range_picker.value
     new_start = end + pd.Timedelta(seconds=1)
     new_end = end + pd.Timedelta(hours=1)
     datetime_range_picker.value = (new_start, new_end)
+    import time as _time
+    heatmap_click_trigger.value = f"{new_start.strftime('%Y-%m-%d')},{new_start.hour},{_time.time()}"
 
 def previous_day_detec(event):
     start, end = datetime_range_picker.value
     new_start = start - pd.Timedelta(days=1)
     new_end = start - pd.Timedelta(seconds=1)
     datetime_range_picker.value = (new_start, new_end)
+    import time as _time
+    ts = _time.time()
+    heatmap_click_trigger.value = f"{new_start.strftime('%Y-%m-%d')},-1,{ts}"
+    histogram_click_trigger.value = f"{new_start.strftime('%Y-%m-%d')},{ts}"
 
 def next_day_detec(event):
     start, end = datetime_range_picker.value
     new_start = end + pd.Timedelta(seconds=1)
     new_end = end + pd.Timedelta(days=1)
     datetime_range_picker.value = (new_start, new_end)
+    import time as _time
+    ts = _time.time()
+    heatmap_click_trigger.value = f"{new_start.strftime('%Y-%m-%d')},-1,{ts}"
+    histogram_click_trigger.value = f"{new_start.strftime('%Y-%m-%d')},{ts}"
 
 def callback_histogram_selection(*events):
     """_summary_
@@ -2465,7 +2608,7 @@ bottom_panel = pn.Row(
 # Create an HTML pane to inject the JavaScript
 #js_pane = pn.pane.HTML(js_code, width=0, height=0, sizing_mode='fixed')
 
-template.main.append(pn.Column(top_panel_tabs, bottom_panel))
+template.main.append(pn.Column(top_panel_tabs, bottom_panel, heatmap_click_trigger, histogram_click_trigger))
 #keyboard_shortcuts = KeyboardShortcutHandler()
 #template.main.append(pn.Column(top_panel_tabs, bottom_panel, keyboard_shortcuts.get_widget()))
 #eetemplate.main.append(shortcuts)
