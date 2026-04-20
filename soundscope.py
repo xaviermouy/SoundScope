@@ -203,7 +203,7 @@ global TZ_offset
 logger.debug("Initializing variables..")  # Log initialization of variables.
 
 # Initialize variables / Parameters.
-
+last_plotted_index = None # Initialize last_plotted_index to None.
 dataset = None  # Initialize dataset object to None.
 active_data = Annotation()  # Initialize active_data object to Annotation object.
 d = pd.DataFrame(
@@ -414,12 +414,10 @@ dataframe_explorer_widget = pn.widgets.Tabulator(
         "confidence": None,
         "Y": None,
         "N": None,
-        "M": None,
     },
     formatters={
         "Y": {"type": "tickCross", "crossElement": ""},
         "N": {"type": "tickCross", "crossElement": ""},
-        "M": {"type": "tickCross", "crossElement": ""},
     },
     text_align={
         "confidence": "center",
@@ -430,7 +428,6 @@ dataframe_explorer_widget = pn.widgets.Tabulator(
         "confidence": "center",
         "Y": "center",
         "N": "center",
-        "M": "center",
     },
 )
 #spectrogram_plot_pane = pn.pane.Matplotlib(name="Spectrogram", fixed_aspect=False, height=565,dpi=80)
@@ -451,7 +448,6 @@ datetime_range_picker = pn.widgets.DatetimeRangePicker(
     name="Datetime Range Selection", sizing_mode="stretch_width"
 )
 dataframe_explorer_widget_locked = True
-last_plotted_index = None
 
 def rasterize_and_save(fname, rasterize_list=None, fig=None, dpi=None,
                        savefig_kw={}):
@@ -600,8 +596,8 @@ def load_dataset(data_file):
         success_notification("Dataset successfully loaded!")
         # apply time zone offset
         dataset = apply_time_offset(dataset, TZ_offset)
-        # add Y/N/M review columns if not already present
-        for col in ["Y", "N", "M"]:
+        # add Y,N review columns if not already present
+        for col in ["Y", "N"]:
             if col not in dataset.data.columns:
                 dataset.data[col] = False
         # update class labels in widget
@@ -616,8 +612,8 @@ def load_dataset(data_file):
             success_notification("Dataset loaded!")
             # apply time zone offset
             dataset = apply_time_offset(dataset, TZ_offset)
-            # add Y/N/M review columns if not already present
-            for col in ["Y", "N", "M"]:
+            # add Y,N review columns if not already present
+            for col in ["Y", "N"]:
                 if col not in dataset.data.columns:
                     dataset.data[col] = False
             # update class labels in widget
@@ -1141,76 +1137,103 @@ def callback_heatmap_selection(*_events):
 heatmap_click_trigger = pn.widgets.TextInput(value="", styles={'display': 'none'})
 heatmap_click_trigger.jscallback(
     value="""
+// Immediately-invoked function to avoid polluting the global JS scope.
 (function() {
+    // cb_obj.value is set by Python as "YYYY-MM-DD,HH,<timestamp>".
+    // The trailing timestamp is appended so that setting the same date/hour
+    // twice in a row still registers as a value change and fires this callback.
     const parts = cb_obj.value.split(',');
     if (parts.length < 2) return;
-    const target_date = parts[0];
-    const target_hour = parseInt(parts[1]);
+    const target_date = parts[0];          // e.g. "2024-03-15"
+    const target_hour = parseInt(parts[1]); // e.g. 14, or -1 for a full-day selection
 
-    // Find the heatmap ColumnDataSource — it has 'columns' (date strings) and 'index' (hours).
-    let heatmap_source = null;
+    // Collect ALL ColumnDataSources that look like a heatmap source (have both
+    // 'columns' and 'index' arrays). We need ALL of them — not just the first —
+    // because when the confidence threshold changes, Panel re-renders the heatmap
+    // and creates a NEW ColumnDataSource while the OLD one may still linger in
+    // _all_models. If we only update the first match we risk updating a stale,
+    // no-longer-rendered source, which has no visual effect. Updating every
+    // matching source is safe: only the currently-rendered one produces a visual
+    // change; updates to stale sources are harmless no-ops.
+    let heatmap_sources = [];
     try {
         const doc = Bokeh.documents[0];
+        // _all_models can be either a Map or a plain object depending on the
+        // Bokeh version, so we normalise both into an iterable of [id, model] pairs.
         const entries = doc._all_models instanceof Map
             ? doc._all_models.entries()
             : Object.entries(doc._all_models || {});
         for (const [id, model] of entries) {
             const d = model.data;
             if (d && d['columns'] !== undefined && d['index'] !== undefined) {
-                heatmap_source = model;
-                break;
+                heatmap_sources.push(model);
             }
         }
     } catch(e) { console.warn('SoundScope: model search failed', e); return; }
 
-    if (!heatmap_source) {
+    if (heatmap_sources.length === 0) {
         console.warn('SoundScope: heatmap ColumnDataSource not found');
         return;
     }
 
-    const dates = heatmap_source.data['columns'];
-    const hours = heatmap_source.data['index'];
+    // Apply the selection update to every matching source.
+    for (const heatmap_source of heatmap_sources) {
+        // Flat arrays — one entry per heatmap cell (row = hour, col = date).
+        const dates = heatmap_source.data['columns'];
+        const hours = heatmap_source.data['index'];
 
-    let indices = [];
-    if (target_hour === -1) {
-        // Day view: select all cells belonging to this date
-        for (let i = 0; i < dates.length; i++) {
-            if (String(dates[i]).startsWith(target_date)) indices.push(i);
-        }
-    } else {
-        // Hour view: select the single matching cell
-        for (let i = 0; i < dates.length; i++) {
-            if (String(dates[i]).startsWith(target_date) && parseInt(hours[i]) === target_hour) {
-                indices = [i];
-                break;
+        // Build the list of flat indices to highlight.
+        let indices = [];
+        if (target_hour === -1) {
+            // Day-level navigation (Previous/Next Day): highlight every cell
+            // that belongs to the target date regardless of hour.
+            for (let i = 0; i < dates.length; i++) {
+                if (String(dates[i]).startsWith(target_date)) indices.push(i);
+            }
+        } else {
+            // Hour-level navigation (Previous/Next Hour): highlight the single
+            // cell whose date AND hour both match.
+            for (let i = 0; i < dates.length; i++) {
+                if (String(dates[i]).startsWith(target_date) && parseInt(hours[i]) === target_hour) {
+                    indices = [i];
+                    break;
+                }
             }
         }
-    }
 
-    if (indices.length === 0) {
-        console.warn('SoundScope: no heatmap cell found for', target_date, target_hour);
-        return;
-    }
+        if (indices.length === 0) continue; // Target not in this source — skip.
 
-    // Update the selection — triggers nonselection_alpha greying on all other cells
-    heatmap_source.selected.indices = indices;
-    heatmap_source.change.emit();
+        // Assign the selection and emit a change event so Bokeh re-renders the
+        // heatmap — selected cells appear highlighted while unselected ones are
+        // dimmed via nonselection_alpha.
+        heatmap_source.selected.indices = indices;
+        heatmap_source.change.emit();
+    }
 })();
 """)
 
 histogram_click_trigger = pn.widgets.TextInput(value="", styles={'display': 'none'})
 histogram_click_trigger.jscallback(
     value="""
+// Immediately-invoked function to avoid polluting the global JS scope.
 (function() {
+    // cb_obj.value is set by Python as "YYYY-MM-DD,<timestamp>".
+    // The trailing timestamp ensures repeated navigations to the same date
+    // still fire the callback (a TextInput only triggers on actual value changes).
     const parts = cb_obj.value.split(',');
     if (parts.length < 2) return;
-    const target_date = parts[0];  // 'YYYY-MM-DD'
+    const target_date = parts[0];  // e.g. "2024-03-15"
 
-    // Find the daily bar chart ColumnDataSource.
-    // It has a 'value' column but NOT 'columns'/'index'/'zvalues' (heatmap keys).
-    let bar_source = null;
+    // Collect ALL bar chart ColumnDataSources (fingerprint: has 'value', lacks
+    // heatmap-specific 'zvalues'/'index' keys). We need all of them because
+    // when the confidence threshold changes, Panel re-renders the bar chart and
+    // creates a new ColumnDataSource while the old one may linger in _all_models.
+    // Updating only the first match risks hitting a stale, non-rendered source.
+    // Updating all of them is safe — only the live one produces a visual change.
+    let bar_sources = [];
     try {
         const doc = Bokeh.documents[0];
+        // Normalise _all_models — it can be a Map or a plain object.
         const entries = doc._all_models instanceof Map
             ? doc._all_models.entries()
             : Object.entries(doc._all_models || {});
@@ -1218,73 +1241,108 @@ histogram_click_trigger.jscallback(
             const d = model.data;
             if (!d || typeof d !== 'object') continue;
             const keys = Object.keys(d);
-            // Bar chart has 'value' column and no heatmap-specific columns
+            // Bar chart fingerprint: has 'value', no heatmap-specific keys.
             if (keys.includes('value') && !keys.includes('zvalues') && !keys.includes('index')) {
-                bar_source = model;
-                break;
+                bar_sources.push(model);
             }
         }
     } catch(e) { console.warn('SoundScope histogram: model search failed', e); return; }
 
-    if (!bar_source) {
+    if (bar_sources.length === 0) {
         console.warn('SoundScope histogram: bar chart ColumnDataSource not found');
         return;
     }
 
-    // Find which key holds the x-axis (datetime timestamps as large numbers)
-    const d = bar_source.data;
-    const keys = Object.keys(d);
-    let x_key = null;
-    for (const k of keys) {
-        const arr = d[k];
-        if (!arr || !arr.length) continue;
-        // Datetime in Bokeh is stored as ms since epoch — large numbers
-        if (typeof arr[0] === 'number' && arr[0] > 1e9) { x_key = k; break; }
-    }
-    if (!x_key) {
-        console.warn('SoundScope histogram: could not find x datetime column', keys);
-        return;
-    }
+    // Apply the selection update to every matching source.
+    for (const bar_source of bar_sources) {
+        // Identify which column contains the x-axis datetime values.
+        // Bokeh encodes datetimes as milliseconds since the Unix epoch, so the
+        // values are large integers (> 1e9). We scan all numeric columns to find it.
+        const d = bar_source.data;
+        const keys = Object.keys(d);
+        let x_key = null;
+        for (const k of keys) {
+            const arr = d[k];
+            if (!arr || !arr.length) continue;
+            if (typeof arr[0] === 'number' && arr[0] > 1e9) { x_key = k; break; }
+        }
+        if (!x_key) continue; // No datetime column in this source — skip.
 
-    // Find the row whose date matches target_date
-    const x_arr = d[x_key];
-    let match_idx = -1;
-    for (let i = 0; i < x_arr.length; i++) {
-        const row_date = new Date(x_arr[i]).toISOString().slice(0, 10);
-        if (row_date === target_date) { match_idx = i; break; }
-    }
+        // Scan the x-axis array for the bar whose date matches target_date.
+        // new Date(ms).toISOString() gives "YYYY-MM-DDTHH:mm:ss.sssZ"; slicing
+        // the first 10 characters yields the "YYYY-MM-DD" date string for comparison.
+        const x_arr = d[x_key];
+        let match_idx = -1;
+        for (let i = 0; i < x_arr.length; i++) {
+            const row_date = new Date(x_arr[i]).toISOString().slice(0, 10);
+            if (row_date === target_date) { match_idx = i; break; }
+        }
 
-    if (match_idx < 0) {
-        console.warn('SoundScope histogram: no bar found for', target_date);
-        return;
-    }
+        if (match_idx < 0) continue; // Target date not in this source — skip.
 
-    bar_source.selected.indices = [match_idx];
-    bar_source.change.emit();
+        // Select the matching bar and emit a change so Bokeh re-renders with
+        // the highlight applied.
+        bar_source.selected.indices = [match_idx];
+        bar_source.change.emit();
+    }
 })();
 """)
 
 
 def previous_hour_detec(event):
+    global active_data
     start, end = datetime_range_picker.value
-    new_start = start - pd.Timedelta(hours=1)
-    new_end = start - pd.Timedelta(seconds=1)
+    start = pd.Timestamp(start)
+    current_hour = start.floor('h')
+    if active_data is not None and not active_data.data.empty and "date" in active_data.data.columns:
+        # Find the nearest earlier hour that contains at least one detection
+        hours_with_data = active_data.data["date"].dt.floor('h').drop_duplicates().sort_values()
+        earlier = hours_with_data[hours_with_data < current_hour]
+        if earlier.empty:
+            return  # No earlier hour with detections — do nothing
+        new_start = earlier.iloc[-1]
+    else:
+        new_start = current_hour - pd.Timedelta(hours=1)
+    new_end = new_start + pd.Timedelta(hours=1) - pd.Timedelta(seconds=1)
     datetime_range_picker.value = (new_start, new_end)
     import time as _time
     heatmap_click_trigger.value = f"{new_start.strftime('%Y-%m-%d')},{new_start.hour},{_time.time()}"
 
 def next_hour_detec(event):
+    global active_data
     start, end = datetime_range_picker.value
-    new_start = end + pd.Timedelta(seconds=1)
-    new_end = end + pd.Timedelta(hours=1)
+    start = pd.Timestamp(start)
+    current_hour = start.floor('h')
+    if active_data is not None and not active_data.data.empty and "date" in active_data.data.columns:
+        # Find the nearest later hour that contains at least one detection
+        hours_with_data = active_data.data["date"].dt.floor('h').drop_duplicates().sort_values()
+        later = hours_with_data[hours_with_data > current_hour]
+        if later.empty:
+            return  # No later hour with detections — do nothing
+        new_start = later.iloc[0]
+    else:
+        end = pd.Timestamp(end)
+        new_start = end.ceil('h')
+    new_end = new_start + pd.Timedelta(hours=1) - pd.Timedelta(seconds=1)
     datetime_range_picker.value = (new_start, new_end)
     import time as _time
     heatmap_click_trigger.value = f"{new_start.strftime('%Y-%m-%d')},{new_start.hour},{_time.time()}"
 
 def previous_day_detec(event):
+    global active_data
     start, end = datetime_range_picker.value
-    new_start = start - pd.Timedelta(days=1)
-    new_end = start - pd.Timedelta(seconds=1)
+    start = pd.Timestamp(start)
+    current_day = start.normalize()
+    if active_data is not None and not active_data.data.empty and "date" in active_data.data.columns:
+        # Find the nearest earlier day that contains at least one detection
+        days_with_data = active_data.data["date"].dt.normalize().drop_duplicates().sort_values()
+        earlier = days_with_data[days_with_data < current_day]
+        if earlier.empty:
+            return  # No earlier day with detections — do nothing
+        new_start = earlier.iloc[-1]
+    else:
+        new_start = current_day - pd.Timedelta(days=1)
+    new_end = new_start + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
     datetime_range_picker.value = (new_start, new_end)
     import time as _time
     ts = _time.time()
@@ -1292,9 +1350,21 @@ def previous_day_detec(event):
     histogram_click_trigger.value = f"{new_start.strftime('%Y-%m-%d')},{ts}"
 
 def next_day_detec(event):
+    global active_data
     start, end = datetime_range_picker.value
-    new_start = end + pd.Timedelta(seconds=1)
-    new_end = end + pd.Timedelta(days=1)
+    start = pd.Timestamp(start)
+    current_day = start.normalize()
+    if active_data is not None and not active_data.data.empty and "date" in active_data.data.columns:
+        # Find the nearest later day that contains at least one detection
+        days_with_data = active_data.data["date"].dt.normalize().drop_duplicates().sort_values()
+        later = days_with_data[days_with_data > current_day]
+        if later.empty:
+            return  # No later day with detections — do nothing
+        new_start = later.iloc[0]
+    else:
+        end = pd.Timestamp(end)
+        new_start = end.normalize() + pd.Timedelta(days=1)
+    new_end = new_start + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
     datetime_range_picker.value = (new_start, new_end)
     import time as _time
     ts = _time.time()
@@ -1836,10 +1906,15 @@ def load_dataframe_explorer_widget(
                 # dataframe_explorer_widget.value = subselection.data[['date', 'confidence', 'label_class', 'audio_file_dir', 'audio_file_name', 'hydrophone_SN']]
 
                 try:
-                    df = subselection.data[
-                        ["label_class", "date", "confidence"]
-                    ].copy()
-                    for col in ["Y", "N", "M"]:
+                    # Build the display DataFrame with only the columns shown in the
+                    # detection table. Starting from the three core columns avoids
+                    # exposing raw metadata fields (file paths, hydrophone SN, etc.)
+                    # that are stored in subselection but not relevant to reviewing.
+                    df = subselection.data[["label_class", "date", "confidence"]].copy()
+                    # Append the Y/N review checkbox columns. If a column is absent
+                    # (e.g. older .nc file saved before review columns were added),
+                    # default every row to False so the table still renders correctly.
+                    for col in ["Y", "N"]:
                         df[col] = subselection.data[col] if col in subselection.data.columns else False
                     dataframe_explorer_widget.value = df
 
@@ -1873,6 +1948,7 @@ def click_dataframe_explorer_widget(event=None):
 
             selected_raw_index = int(dataframe_explorer_widget.value.iloc[dataframe_explorer_widget.selection[0]].name)
 
+            # Avoid re-plotting the spectrogram if the same row is clicked again.
             if selected_raw_index == last_plotted_index:
                 return
 
@@ -1909,13 +1985,19 @@ def save_hourly_csv_file(event=None):
     start_time_rec = start_time_rec.tz_localize(offset_rec)
     end_time_rec = end_time_rec.tz_localize(offset_rec)
 
+    # Count Y and N manual review labels per hour
+    manual_counts = active_data.data.copy()
+    manual_counts["hour"] = manual_counts["date"].dt.floor("h")
+    manual_hourly = manual_counts.groupby("hour")[["Y", "N"]].sum().reindex(full_range, fill_value=0)
+    manual_review_col = [f"Y: {int(row.Y)}, N: {int(row.N)}" for _, row in manual_hourly.iterrows()]
+
     df = pd.DataFrame({'Start time (recordings time zone)':start_time_rec,
                        'End time (recordings time zone)': end_time_rec,
                        'Start time (analysis time zone)': start_time_an,
                        'End time (analysis time zone)': end_time_an,
                        'Number of detections': n_detections,
                        })
-    df["Manual_Review"] = ""
+    df["Manual Review (Y, N)"] = manual_review_col
     df["Comments"] = ""
     preamble1 = f"SoundScope version: {__version__} \n"
     preamble2 = f"Originator: {os.getlogin()} \n"
@@ -1947,13 +2029,20 @@ def save_daily_csv_file(event=None):
     start_time_rec = start_time_rec.tz_localize(offset_rec)
     end_time_rec = end_time_rec.tz_localize(offset_rec)
 
+    # Count Y and N manual review labels per day
+    manual_counts = active_data.data.copy()
+    manual_counts["day"] = manual_counts["date"].dt.floor("D")
+    daily_index = aggregate_1D.index
+    manual_daily = manual_counts.groupby("day")[["Y", "N"]].sum().reindex(daily_index, fill_value=0)
+    manual_review_col = [f"Y: {int(row.Y)}, N: {int(row.N)}" for _, row in manual_daily.iterrows()]
+
     df = pd.DataFrame({'Start time (recordings time zone)':start_time_rec,
                        'End time (recordings time zone)': end_time_rec,
                        'Start time (analysis time zone)': start_time_an,
                        'End time (analysis time zone)': end_time_an,
                        'Number of detections': n_detections,
                        })
-    df["Manual_Review"] = ""
+    df["Manual Review (Y, N)"] = manual_review_col
     df["Comments"] = ""
     preamble1 = f"SoundScope version: {__version__} \n"
     preamble2 = f"Originator: {os.getlogin()} \n"
@@ -2156,11 +2245,11 @@ dataframe_explorer_widget.param.watch(click_dataframe_explorer_widget, "selectio
 
 
 def enforce_checkbox_mutual_exclusivity(event):
-    """Ensure only one of Y, N, M is checked per row."""
+    """Ensure only one of Y, N is checked per row."""
     global dataframe_explorer_widget
     if dataframe_explorer_widget.value is None:
         return
-    checkbox_cols = ["Y", "N", "M"]
+    checkbox_cols = ["Y", "N"]
     if not all(c in dataframe_explorer_widget.value.columns for c in checkbox_cols):
         return
 
@@ -2198,35 +2287,53 @@ dataframe_explorer_widget.param.watch(enforce_checkbox_mutual_exclusivity, "valu
 
 
 def sync_checkbox_to_dataset(event):
-    """Sync Y/N/M checkbox values from the widget back to dataset.data.
+    """Sync Y/N checkbox values from the widget back to dataset.data and active_data.data.
 
     This ensures any checkbox changes made in the table are persisted in the
     master dataset object. When the user saves via save_nc_file(), the updated
-    Y/N/M columns will be included in the .nc file automatically.
+    Y/N columns will be included in the .nc file automatically.
 
-    On next load, load_dataset() will detect the existing Y/N/M columns and
+    On next load, load_dataset() will detect the existing Y/N columns and
     preserve their values rather than resetting them to False.
     """
-    global dataset
+    global dataset, active_data
     if dataset is None or event.new is None:
         return
-    checkbox_cols = ["Y", "N", "M"]
+    checkbox_cols = ["Y", "N"]
     if not all(c in event.new.columns for c in checkbox_cols):
         return
     if not all(c in dataset.data.columns for c in checkbox_cols):
         return
     # Use the widget DataFrame's pandas index to update only the rows
-    # currently displayed (preserving checkbox states for rows not in view)
+    # currently displayed (preserving checkbox states for rows not in view).
+    # We always use intersection() rather than a bare .loc[widget_index] because
+    # to_netcdf() may mutate dataset.data's index (e.g. ecosound sets 'date' as
+    # the xarray index during serialisation), making the widget's integer indices
+    # stale. If the intersection is empty we fall back to matching by 'date' values.
     for col in checkbox_cols:
-        dataset.data.loc[event.new.index, col] = event.new[col].values
+        common_idx = dataset.data.index.intersection(event.new.index)
+        if not common_idx.empty:
+            dataset.data.loc[common_idx, col] = event.new.loc[common_idx, col].values
+        elif "date" in event.new.columns and "date" in dataset.data.columns:
+            # Index types diverged after save — match rows by their 'date' value instead.
+            date_to_val = dict(zip(event.new["date"], event.new[col]))
+            mask = dataset.data["date"].isin(date_to_val)
+            dataset.data.loc[mask, col] = dataset.data.loc[mask, "date"].map(date_to_val)
+
+        if active_data is not None and col in active_data.data.columns:
+            active_data.data.loc[
+                active_data.data.index.intersection(event.new.index), col
+            ] = event.new.loc[
+                active_data.data.index.intersection(event.new.index), col
+            ].values
 
 
 dataframe_explorer_widget.param.watch(sync_checkbox_to_dataset, "value")
 
 
 def on_checkbox_click(event):
-    """Toggle Y/N/M checkbox on single cell click, only if the row is selected."""
-    if event.column not in ["Y", "N", "M"]:
+    """Toggle Y/N checkbox on single cell click, only if the row is selected."""
+    if event.column not in ["Y", "N"]:
         return
     if dataframe_explorer_widget.value is None:
         return
@@ -2600,7 +2707,7 @@ bottom_panel = pn.Row(
         load_dataframe_explorer_widget,
         disabled=False,
         margin=(45, 10, 10, 10),
-        width=660,
+        width=615,
     ),
 )
 
