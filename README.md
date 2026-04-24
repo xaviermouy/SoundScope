@@ -4,7 +4,7 @@
 
 # What is SoundScope ?
 SoundScope is a python-based software that facilitates the visualization and manual verification of detections from automatic whale and fish sound detectors (or any other sound detectors). 
-It allows to display and navigate through detections time series, filter and sort by classification confidence, and dynamically produce spectrograms of the detections. SoundScope is developed by the [Acoustic and Conservation Technology Lab](https://www.whoi.edu/what-we-do/understand/departments-centers-labs/aope/aope-labs/act-lab/) at the Woods Hole Oceanographic Institution (WHOI).
+It allows to display and navigate through detections time series, filter and sort by classification confidence, and dynamically produce spectrograms of the detections. SoundScope is developed by the Acoustic and Conservation Technology (ACT) Lab at the Woods Hole Oceanographic Institution (WHOI).
 
 > **Note:** SoundScope is still under active development. Features and interfaces may change between versions. Please don't hesitate to reach out if you need help with using SoundScope or want to help with the development.
 
