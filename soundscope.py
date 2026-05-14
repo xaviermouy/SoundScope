@@ -209,6 +209,8 @@ logger.debug("Initializing variables..")  # Log initialization of variables.
 # Initialize variables / Parameters.
 last_plotted_index = None  # Initialize last_plotted_index to None.
 dataset = None  # Initialize dataset object to None.
+auto_save_nc_path = None  # Path used for auto-save; set on first Save As, reused silently after.
+auto_save_callback = None  # Handle to the active periodic auto-save callback.
 active_data = Annotation()  # Initialize active_data object to Annotation object.
 d = pd.DataFrame(
     0, index=[0], columns=active_data.data
@@ -362,11 +364,16 @@ frequency_mode_status_widget = pn.widgets.StaticText(
     # sizing_mode="stretch_width"
 )
 
-# deployment start and end dates
-deployment_date_range_picker = pn.widgets.DateRangePicker(
-    name="Deployment dates",
-    value=(datetime.date.today(), datetime.date.today()),
-    sizing_mode="stretch_width"
+# deployment start and end dates (two separate pickers shown side by side)
+deployment_start_date_picker = pn.widgets.DatePicker(
+    name="Start Date",
+    value=datetime.date.today(),
+    sizing_mode="stretch_width",
+)
+deployment_end_date_picker = pn.widgets.DatePicker(
+    name="End Date",
+    value=datetime.date.today(),
+    sizing_mode="stretch_width",
 )
 
 # Callback function to handle the switch toggle
@@ -424,10 +431,12 @@ dataframe_explorer_widget = pn.widgets.Tabulator(
         "confidence": None,
         "Y": None,
         "N": None,
+        "P": None,
     },
     formatters={
         "Y": {"type": "tickCross", "crossElement": ""},
         "N": {"type": "tickCross", "tickElement": "<span style='color:red'>✗</span>", "crossElement": ""},
+        "P": {"type": "tickCross", "tickElement": "<span style='color:orange'>?</span>", "crossElement": ""},
     },
     text_align={
         "confidence": "center",
@@ -438,6 +447,7 @@ dataframe_explorer_widget = pn.widgets.Tabulator(
         "confidence": "center",
         "Y": "center",
         "N": "center",
+        "P": "center",
     },
 )
 # spectrogram_plot_pane = pn.pane.Matplotlib(name="Spectrogram", fixed_aspect=False, height=565,dpi=80)
@@ -613,19 +623,17 @@ def load_dataset(data_file):
         success_notification("Dataset successfully loaded!")
         # apply time zone offset
         dataset = apply_time_offset(dataset, TZ_offset)
-        # add Y,N review columns if not already present
-        for col in ["Y", "N"]:
+        # add Y,N,P review columns if not already present
+        for col in ["Y", "N", "P"]:
             if col not in dataset.data.columns:
                 dataset.data[col] = False
         # update class labels in widget
         update_class_label_widget()
         # update text with analysis time zone
         update_analysis_timezone_text(analysis_timezone)
-        # update deployment date range picker silently (without triggering @pn.depends)
-        deployment_date_range_picker.value = (
-            dataset.data["time_min_date"].min().date(),
-            dataset.data["time_max_date"].max().date(),
-        )
+        # update deployment date pickers silently (without triggering @pn.depends)
+        deployment_start_date_picker.value = dataset.data["time_min_date"].min().date()
+        deployment_end_date_picker.value = dataset.data["time_max_date"].max().date()
 
     except:
         try:
@@ -636,19 +644,17 @@ def load_dataset(data_file):
             success_notification("Dataset loaded!")
             # apply time zone offset
             dataset = apply_time_offset(dataset, TZ_offset)
-            # add Y,N review columns if not already present
-            for col in ["Y", "N"]:
+            # add Y,N,P review columns if not already present
+            for col in ["Y", "N", "P"]:
                 if col not in dataset.data.columns:
                     dataset.data[col] = False
             # update class labels in widget
             update_class_label_widget()
             # update text with analysis time zone
             update_analysis_timezone_text(analysis_timezone)
-            # update deployment date range picker silently (without triggering @pn.depends)
-            deployment_date_range_picker.value = (
-                dataset.data["time_min_date"].min().date(),
-                dataset.data["time_max_date"].max().date(),
-            )
+            # update deployment date pickers silently (without triggering @pn.depends)
+            deployment_start_date_picker.value = dataset.data["time_min_date"].min().date()
+            deployment_end_date_picker.value = dataset.data["time_max_date"].max().date()
 
         except Exception as e:
             error_notification("Dataset failed to load!")
@@ -1958,7 +1964,7 @@ def load_dataframe_explorer_widget(
                     # Append the Y/N review checkbox columns. If a column is absent
                     # (e.g. older .nc file saved before review columns were added),
                     # default every row to False so the table still renders correctly.
-                    for col in ["Y", "N"]:
+                    for col in ["Y", "N", "P"]:
                         df[col] = subselection.data[col] if col in subselection.data.columns else False
                     dataframe_explorer_widget.value = df
 
@@ -2009,8 +2015,8 @@ def click_dataframe_explorer_widget(event=None):
 
 def save_hourly_csv_file(event=None):
     filename = show_save_file_dialog(filename='hourly_detection_summary.csv', extension='.csv')
-    start_date, end_date = deployment_date_range_picker.value
-    end_date = end_date + datetime.timedelta(hours=1)
+    start_date = deployment_start_date_picker.value
+    end_date = deployment_end_date_picker.value + datetime.timedelta(hours=1)
     aggregate_1H = active_data.calc_time_aggregate_1D(integration_time='1h',
                                                        start_date=pd.Timestamp(start_date),
                                                        end_date=pd.Timestamp(end_date))
@@ -2045,14 +2051,27 @@ def save_hourly_csv_file(event=None):
                                                   start_date=pd.Timestamp(start_date),
                                                   end_date=pd.Timestamp(end_date))
     manual_presence = list(manual_presence.values[:, 0])
+
+    # First confirmed detection timestamp per hour
+    y_rows = active_data.data[active_data.data["Y"] == True].copy()  # keep only Y-confirmed detections
+    if not y_rows.empty:
+        y_rows["hour_bin"] = y_rows["date"].dt.floor("h")  # snap each detection to its hour boundary
+        first_det_map = y_rows.groupby("hour_bin")["date"].min()  # earliest detection per hour bucket
+        first_detection = pd.Series(
+            [first_det_map.get(t, pd.NaT) for t in aggregate_1H.index],  # align to export index; NaT if none
+            index=aggregate_1H.index,
+        ).dt.tz_localize(offset_an)  # apply analysis timezone to match other time columns
+    else:
+        first_detection = pd.Series([pd.NaT] * len(aggregate_1H.index), index=aggregate_1H.index)
+
     df = pd.DataFrame({'Start time (recordings time zone)': start_time_rec,
                        'End time (recordings time zone)': end_time_rec,
                        'Start time (analysis time zone)': start_time_an,
                        'End time (analysis time zone)': end_time_an,
                        'Number of detections': n_detections,
                        "Manual Review": manual_presence,
+                       "Detection time (analysis time zone)": first_detection,
                        })
-    #df["Manual Review"] = manual_counts
     df["Comments"] = ""
     preamble1 = f"SoundScope version: {__version__} \n"
     preamble2 = f"Originator: {os.getlogin()} \n"
@@ -2070,8 +2089,8 @@ def save_hourly_csv_file(event=None):
 
 def save_daily_csv_file(event=None):
     filename = show_save_file_dialog(filename='daily_detection_summary.csv', extension='.csv')
-    start_date, end_date = deployment_date_range_picker.value
-    end_date = end_date + datetime.timedelta(days=1)
+    start_date = deployment_start_date_picker.value
+    end_date = deployment_end_date_picker.value + datetime.timedelta(days=1)
     aggregate_1D = active_data.calc_time_aggregate_1D(integration_time='1D',
                                                       start_date=pd.Timestamp(start_date),
                                                       end_date=pd.Timestamp(end_date))
@@ -2097,12 +2116,26 @@ def save_daily_csv_file(event=None):
                                                     start_date=pd.Timestamp(start_date),
                                                     end_date=pd.Timestamp(end_date))
     manual_presence = list(manual_presence.values[:, 0])
+
+    # First confirmed detection timestamp per day
+    y_rows = active_data.data[active_data.data["Y"] == True].copy()  # keep only Y-confirmed detections
+    if not y_rows.empty:
+        y_rows["day_bin"] = y_rows["date"].dt.normalize()  # snap each detection to midnight of its day
+        first_det_map = y_rows.groupby("day_bin")["date"].min()  # earliest detection per day bucket
+        first_detection = pd.Series(
+            [first_det_map.get(t, pd.NaT) for t in aggregate_1D.index],  # align to export index; NaT if none
+            index=aggregate_1D.index,
+        ).dt.tz_localize(offset_an)  # apply analysis timezone to match other time columns
+    else:
+        first_detection = pd.Series([pd.NaT] * len(aggregate_1D.index), index=aggregate_1D.index)
+
     df = pd.DataFrame({'Start time (recordings time zone)': start_time_rec,
                        'End time (recordings time zone)': end_time_rec,
                        'Start time (analysis time zone)': start_time_an,
                        'End time (analysis time zone)': end_time_an,
                        'Number of detections': n_detections,
                        "Manual Review": manual_presence,
+                       "Detection time (analysis time zone)": first_detection,
                        })
     df["Comments"] = ""
     preamble1 = f"SoundScope version: {__version__} \n"
@@ -2236,6 +2269,18 @@ class KeyboardShortcut(JSComponent):
           model.send_event('f_key', event)
         } else if (event.key === 's' || event.key === 'S') {
           model.send_event('s_key', event)
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault()
+          model.send_event('arrow_up_key', event)
+        } else if (event.key === 'ArrowDown') {
+          event.preventDefault()
+          model.send_event('arrow_down_key', event)
+        } else if (event.key === 'ArrowRight') {
+          event.preventDefault()
+          model.send_event('arrow_right_key', event)
+        } else if (event.key === 'ArrowLeft') {
+          event.preventDefault()
+          model.send_event('arrow_left_key', event)
         }
       });
       return div;
@@ -2247,6 +2292,18 @@ class KeyboardShortcut(JSComponent):
 
     def _handle_s_key(self, event):
         select_previous_detec()
+
+    def _handle_arrow_up_key(self, event):
+        next_hour_detec(event)
+
+    def _handle_arrow_down_key(self, event):
+        previous_hour_detec(event)
+
+    def _handle_arrow_right_key(self, event):
+        next_day_detec(event)
+
+    def _handle_arrow_left_key(self, event):
+        previous_day_detec(event)
 
 
 keyboardshortcut = KeyboardShortcut()
@@ -2280,9 +2337,11 @@ def load_detections(class_label_widget, threshold_widget):
 
 
 def save_nc_file(event):
-    # global selected_sound
+    global auto_save_nc_path
     filename_tmp = data_file_name
     filename = show_save_file_dialog(filename=filename_tmp, extension='.nc')
+    if not filename:
+        return
     # Deep copy dataset and reverse the timezone offset so the file is saved
     # in the original recordings timezone, preventing drift on repeated load/save cycles.
     dataset_to_save = copy.deepcopy(dataset)
@@ -2291,7 +2350,44 @@ def save_nc_file(event):
     # errors during netCDF serialization (e.g. hydrophone_depth = '')
     dataset_to_save.data.replace('', float('nan'), inplace=True)
     dataset_to_save.to_netcdf(filename)
+    auto_save_nc_path = filename
     success_notification('File saved successfully')
+
+
+def _auto_save_to_nc():
+    """Silently overwrite the auto-save path without prompting the user."""
+    global auto_save_nc_path
+    if dataset is None or not auto_save_nc_path:
+        return
+    try:
+        dataset_to_save = copy.deepcopy(dataset)
+        dataset_to_save = apply_time_offset(dataset_to_save, -TZ_offset)
+        dataset_to_save.data.replace('', float('nan'), inplace=True)
+        dataset_to_save.to_netcdf(auto_save_nc_path)
+        success_notification('Auto-saved')
+    except Exception as e:
+        error_notification(f'Auto-save failed: {e}')
+
+
+def on_auto_save_toggle(event):
+    global auto_save_nc_path, auto_save_callback
+    if event.new:  # toggled on
+        if not auto_save_nc_path:
+            # No path yet — ask once via the normal Save As dialog
+            filename_tmp = data_file_name
+            path = show_save_file_dialog(filename=filename_tmp, extension='.nc')
+            if not path:
+                # User cancelled — turn the toggle back off
+                auto_save_toggle.value = False
+                return
+            auto_save_nc_path = path
+        # Save immediately, then repeat every 60 seconds
+        _auto_save_to_nc()
+        auto_save_callback = pn.state.add_periodic_callback(_auto_save_to_nc, period=60000)
+    else:  # toggled off
+        if auto_save_callback is not None:
+            auto_save_callback.stop()
+            auto_save_callback = None
 
 
 def has_subfolders(folder_path):
@@ -2326,11 +2422,11 @@ dataframe_explorer_widget.param.watch(click_dataframe_explorer_widget, "selectio
 
 
 def enforce_checkbox_mutual_exclusivity(event):
-    """Ensure only one of Y, N is checked per row."""
+    """Ensure only one of Y, N, P is checked per row."""
     global dataframe_explorer_widget
     if dataframe_explorer_widget.value is None:
         return
-    checkbox_cols = ["Y", "N"]
+    checkbox_cols = ["Y", "N", "P"]
     if not all(c in dataframe_explorer_widget.value.columns for c in checkbox_cols):
         return
 
@@ -2368,19 +2464,19 @@ dataframe_explorer_widget.param.watch(enforce_checkbox_mutual_exclusivity, "valu
 
 
 def sync_checkbox_to_dataset(event):
-    """Sync Y/N checkbox values from the widget back to dataset.data and active_data.data.
+    """Sync Y/N/P checkbox values from the widget back to dataset.data and active_data.data.
 
     This ensures any checkbox changes made in the table are persisted in the
     master dataset object. When the user saves via save_nc_file(), the updated
-    Y/N columns will be included in the .nc file automatically.
+    Y/N/P columns will be included in the .nc file automatically.
 
-    On next load, load_dataset() will detect the existing Y/N columns and
+    On next load, load_dataset() will detect the existing Y/N/P columns and
     preserve their values rather than resetting them to False.
     """
     global dataset, active_data
     if dataset is None or event.new is None:
         return
-    checkbox_cols = ["Y", "N"]
+    checkbox_cols = ["Y", "N", "P"]
     if not all(c in event.new.columns for c in checkbox_cols):
         return
     if not all(c in dataset.data.columns for c in checkbox_cols):
@@ -2413,8 +2509,8 @@ dataframe_explorer_widget.param.watch(sync_checkbox_to_dataset, "value")
 
 
 def on_checkbox_click(event):
-    """Toggle Y/N checkbox on single cell click, only if the row is selected."""
-    if event.column not in ["Y", "N"]:
+    """Toggle Y/N/P checkbox on single cell click, only if the row is selected."""
+    if event.column not in ["Y", "N", "P"]:
         return
     if dataframe_explorer_widget.value is None:
         return
@@ -2528,6 +2624,7 @@ previous_detec_button = pn.widgets.Button(
     icon_size="2em",
     width=75,
     height=50,
+    description="Shortcut: s",
 )
 next_detec_button = pn.widgets.Button(
     icon="chevron-right",
@@ -2536,6 +2633,7 @@ next_detec_button = pn.widgets.Button(
     icon_size="2em",
     width=80,
     height=50,
+    description="Shortcut: f",
 )
 
 download_sound_button = pn.widgets.Button(
@@ -2574,6 +2672,7 @@ previous_hour_detec_button = pn.widgets.Button(
     button_type="primary",
     width=95,
     align='center',
+    description="Shortcut: ↓ (Down Arrow)",
 )
 
 next_hour_detec_button = pn.widgets.Button(
@@ -2582,6 +2681,7 @@ next_hour_detec_button = pn.widgets.Button(
     button_type="primary",
     width=80,
     align='center',
+    description="Shortcut: ↑ (Up Arrow)",
 )
 
 previous_day_detec_button = pn.widgets.Button(
@@ -2591,6 +2691,7 @@ previous_day_detec_button = pn.widgets.Button(
     width=100,
     align='center',
     margin=(0, 0, 0, 30),
+    description="Shortcut: ← (Left Arrow)",
 )
 
 next_day_detec_button = pn.widgets.Button(
@@ -2599,6 +2700,7 @@ next_day_detec_button = pn.widgets.Button(
     button_type="primary",
     width=80,
     align='center',
+    description="Shortcut: → (Right Arrow)",
 )
 
 # next_detec_button._id = 'my-button'  # Assign a unique ID
@@ -2671,7 +2773,8 @@ spectro_settings_widgetbox = pn.WidgetBox(
 deployment_dates_widgetbox = pn.WidgetBox(
     deployment_analysis_timezone_text,
     #analysis_timezone_text,
-    deployment_date_range_picker,
+    deployment_start_date_picker,
+    deployment_end_date_picker,
     disabled=False,
     margin=(10, 10),
     sizing_mode="stretch_width",
@@ -2695,9 +2798,15 @@ menu_file_widget = pn.widgets.MenuButton(name="File", icon="file", items=file_it
                                          button_style='outline', button_type="light", margin=0)
 menu_edit_widget = pn.widgets.MenuButton(name="Edit", icon='edit', items=edit_items, height=40, width=90,
                                          button_style='outline', button_type="light", margin=0)
+auto_save_toggle = pn.widgets.Switch(
+    name="Auto Save",
+    value=False,
+    margin=(10, 0, 0, 50),
+)
 top_menu = pn.Row(
     menu_file_widget,
     menu_edit_widget,
+    auto_save_toggle,
     styles={"border-bottom": "1px solid black"}
 )
 
@@ -2716,6 +2825,7 @@ def top_menu_edit_actions(item):
 
 menu_file_widget.on_click(top_menu_file_actions)
 menu_edit_widget.on_click(top_menu_edit_actions)
+auto_save_toggle.param.watch(on_auto_save_toggle, 'value')
 
 #  ## Keyboard shortcuts  #########################################
 # #def handle_shortcut(event: DataEvent):
@@ -2808,7 +2918,7 @@ bottom_panel = pn.Row(
         load_dataframe_explorer_widget,
         disabled=False,
         margin=(45, 10, 10, 10),
-        width=615,
+        width=655,
     ),
 )
 
