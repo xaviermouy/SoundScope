@@ -2383,7 +2383,7 @@ def on_auto_save_toggle(event):
             auto_save_nc_path = path
         # Save immediately, then repeat every 60 seconds
         _auto_save_to_nc()
-        auto_save_callback = pn.state.add_periodic_callback(_auto_save_to_nc, period=60000)
+        auto_save_callback = pn.state.add_periodic_callback(_auto_save_to_nc, period=600000)
     else:  # toggled off
         if auto_save_callback is not None:
             auto_save_callback.stop()
