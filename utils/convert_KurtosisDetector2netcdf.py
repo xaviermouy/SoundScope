@@ -15,7 +15,7 @@ import uuid
 detec_files_dir =r'C:\Users\xavier.mouy\Desktop\test_kurtosis_merge' # location of the detection files
 audio_files_dir =r'F:\NEFSC_SBNMS_201910_SB03\1678008346_48kHz' # Location of the audio files associated with the detections
 nc_file_out_dir = r'C:\Users\xavier.mouy\Desktop\test_kurtosis_merge' # where the nc files will be created
-nc_file_out_name = 'TEST_merged.nc' # name of the nc file taht will be created
+nc_file_out_name = 'TEST_merged2.nc' # name of the nc file taht will be created
 audio_file_extension = '.wav' # extention of the audio files in audio_files_dir
 merge_time_tolerance_sec = 1 # if >0 merges together detections that are separated in time by lees than merge_time_tolerance_sec (value in seconds)
 min_merged_detections_number = 3
@@ -47,7 +47,7 @@ detec.data.confidence = detec.data.confidence / 100 # Normalize the kurtosis val
 
 # update audio files path
 print('Updating audio files paths')
-detec.update_audio_dir(audio_files_dir)
+#detec.update_audio_dir(audio_files_dir)
 
 # check integrity
 detec.check_integrity(verbose=True, ignore_frequency_duplicates=True)
