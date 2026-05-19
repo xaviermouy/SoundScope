@@ -2801,11 +2801,12 @@ menu_edit_widget = pn.widgets.MenuButton(name="Edit", icon='edit', items=edit_it
 auto_save_toggle = pn.widgets.Switch(
     name="Auto Save",
     value=False,
-    margin=(10, 0, 0, 50),
+    margin=(10, 0, 0, 4),
 )
 top_menu = pn.Row(
     menu_file_widget,
     menu_edit_widget,
+    pn.widgets.StaticText(value='Autosave', margin=(8, 0, 0, 50)),
     auto_save_toggle,
     styles={"border-bottom": "1px solid black"}
 )
