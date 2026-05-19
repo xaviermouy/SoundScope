@@ -180,4 +180,4 @@ SoundScope has been supported by the following organizations:
 
 # License
 
-SoundScope is released under the [MIT License](LICENSE).
+SoundScope is released under the [BSD 3-Clause License](LICENSE).
