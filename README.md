@@ -74,6 +74,12 @@ If you use SoundScope in your research, please cite it as follows:
 > Mouy, X., Kuo, J., Transue, L., Davis, G., & Holdman, A. SoundScope: a python-based tool for visualization and manual verification of bioacoustic detections. Woods Hole Oceanographic Institution. https://github.com/xaviermouy/SoundScope
 
 # Versions
+
+### version 20260519
+- Implemented feature requests #23, #17, #15
+- Added manual verification capabilities (Y/N/P)
+- Added autosave
+
 ### version 20260113
 - Bug fixes (issues #21, #24, #25, #26)
 - Added keyboard shortcuts for go to the previous (s) and next (f) detections
