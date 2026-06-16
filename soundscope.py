@@ -365,14 +365,16 @@ frequency_mode_status_widget = pn.widgets.StaticText(
 )
 
 # deployment start and end dates (two separate pickers shown side by side)
-deployment_start_date_picker = pn.widgets.DatePicker(
+deployment_start_date_picker = pn.widgets.DatetimePicker(
     name="Start Date",
-    value=datetime.date.today(),
+    value=datetime.datetime.combine(datetime.date.today(), datetime.time(0, 0)),
+    enable_seconds=False,
     sizing_mode="stretch_width",
 )
-deployment_end_date_picker = pn.widgets.DatePicker(
+deployment_end_date_picker = pn.widgets.DatetimePicker(
     name="End Date",
-    value=datetime.date.today(),
+    value=datetime.datetime.combine(datetime.date.today(), datetime.time(0, 0)),
+    enable_seconds=False,
     sizing_mode="stretch_width",
 )
 
@@ -632,8 +634,8 @@ def load_dataset(data_file):
         # update text with analysis time zone
         update_analysis_timezone_text(analysis_timezone)
         # update deployment date pickers silently (without triggering @pn.depends)
-        deployment_start_date_picker.value = dataset.data["time_min_date"].min().date()
-        deployment_end_date_picker.value = dataset.data["time_max_date"].max().date()
+        deployment_start_date_picker.value = dataset.data["time_min_date"].min().floor("min").to_pydatetime().replace(second=0, microsecond=0)
+        deployment_end_date_picker.value = dataset.data["time_max_date"].max().floor("min").to_pydatetime().replace(second=0, microsecond=0)
 
     except:
         try:
@@ -2000,8 +2002,8 @@ def click_dataframe_explorer_widget(event=None):
 
             selected_raw_index = int(dataframe_explorer_widget.value.iloc[dataframe_explorer_widget.selection[0]].name)
 
-            # Avoid re-plotting the spectrogram if the same row is clicked again.
-            if selected_raw_index == last_plotted_index:
+            # Avoid re-plotting the spectrogram if the same row is clicked again
+            if selected_raw_index == last_plotted_index and isinstance(event.obj, Tabulator):
                 return
 
             last_plotted_index = selected_raw_index
@@ -2016,7 +2018,9 @@ def click_dataframe_explorer_widget(event=None):
 def save_hourly_csv_file(event=None):
     filename = show_save_file_dialog(filename='hourly_detection_summary.csv', extension='.csv')
     start_date = deployment_start_date_picker.value
-    end_date = deployment_end_date_picker.value + datetime.timedelta(hours=1)
+    # Subtract 1 second so an end time exactly on an hour boundary (e.g. 00:00:00)
+    # floors to the previous hour bin rather than opening a new empty bin.
+    end_date = deployment_end_date_picker.value - datetime.timedelta(seconds=1)
     aggregate_1H = active_data.calc_time_aggregate_1D(integration_time='1h',
                                                        start_date=pd.Timestamp(start_date),
                                                        end_date=pd.Timestamp(end_date))
@@ -2064,13 +2068,57 @@ def save_hourly_csv_file(event=None):
     else:
         first_detection = pd.Series([pd.NaT] * len(aggregate_1H.index), index=aggregate_1H.index)
 
+    # N review labels per hour
+    manual_n = copy.deepcopy(active_data)
+    manual_n = manual_n.filter("N==True")
+    manual_presence_n = manual_n.calc_time_aggregate_1D(integration_time='1h',
+                                                        is_binary=True,
+                                                        start_date=pd.Timestamp(start_date),
+                                                        end_date=pd.Timestamp(end_date))
+    manual_presence_n = list(manual_presence_n.values[:, 0])
+
+    n_rows = active_data.data[active_data.data["N"] == True].copy()
+    if not n_rows.empty:
+        n_rows["hour_bin"] = n_rows["date"].dt.floor("h")
+        first_det_map_n = n_rows.groupby("hour_bin")["date"].min()
+        first_detection_n = pd.Series(
+            [first_det_map_n.get(t, pd.NaT) for t in aggregate_1H.index],
+            index=aggregate_1H.index,
+        ).dt.tz_localize(offset_an)
+    else:
+        first_detection_n = pd.Series([pd.NaT] * len(aggregate_1H.index), index=aggregate_1H.index)
+
+    # P review labels per hour
+    manual_p = copy.deepcopy(active_data)
+    manual_p = manual_p.filter("P==True")
+    manual_presence_p = manual_p.calc_time_aggregate_1D(integration_time='1h',
+                                                        is_binary=True,
+                                                        start_date=pd.Timestamp(start_date),
+                                                        end_date=pd.Timestamp(end_date))
+    manual_presence_p = list(manual_presence_p.values[:, 0])
+
+    p_rows = active_data.data[active_data.data["P"] == True].copy()
+    if not p_rows.empty:
+        p_rows["hour_bin"] = p_rows["date"].dt.floor("h")
+        first_det_map_p = p_rows.groupby("hour_bin")["date"].min()
+        first_detection_p = pd.Series(
+            [first_det_map_p.get(t, pd.NaT) for t in aggregate_1H.index],
+            index=aggregate_1H.index,
+        ).dt.tz_localize(offset_an)
+    else:
+        first_detection_p = pd.Series([pd.NaT] * len(aggregate_1H.index), index=aggregate_1H.index)
+
     df = pd.DataFrame({'Start time (recordings time zone)': start_time_rec,
                        'End time (recordings time zone)': end_time_rec,
                        'Start time (analysis time zone)': start_time_an,
                        'End time (analysis time zone)': end_time_an,
                        'Number of detections': n_detections,
-                       "Manual Review": manual_presence,
-                       "Detection time (analysis time zone)": first_detection,
+                       "Manual Review Y": manual_presence,
+                       "Detection Y time (analysis time zone)": first_detection,
+                       "Manual Review N": manual_presence_n,
+                       "Detection N time (analysis time zone)": first_detection_n,
+                       "Manual Review P": manual_presence_p,
+                       "Detection P time (analysis time zone)": first_detection_p,
                        })
     df["Comments"] = ""
     preamble1 = f"SoundScope version: {__version__} \n"
@@ -2090,7 +2138,9 @@ def save_hourly_csv_file(event=None):
 def save_daily_csv_file(event=None):
     filename = show_save_file_dialog(filename='daily_detection_summary.csv', extension='.csv')
     start_date = deployment_start_date_picker.value
-    end_date = deployment_end_date_picker.value + datetime.timedelta(days=1)
+    # Subtract 1 second so an end time exactly at midnight floors to the previous
+    # day bin rather than opening an extra empty day row.
+    end_date = deployment_end_date_picker.value - datetime.timedelta(seconds=1)
     aggregate_1D = active_data.calc_time_aggregate_1D(integration_time='1D',
                                                       start_date=pd.Timestamp(start_date),
                                                       end_date=pd.Timestamp(end_date))
@@ -2129,13 +2179,57 @@ def save_daily_csv_file(event=None):
     else:
         first_detection = pd.Series([pd.NaT] * len(aggregate_1D.index), index=aggregate_1D.index)
 
+    # N review labels per day
+    manual_n = copy.deepcopy(active_data)
+    manual_n = manual_n.filter("N==True")
+    manual_presence_n = manual_n.calc_time_aggregate_1D(integration_time='1D',
+                                                        is_binary=True,
+                                                        start_date=pd.Timestamp(start_date),
+                                                        end_date=pd.Timestamp(end_date))
+    manual_presence_n = list(manual_presence_n.values[:, 0])
+
+    n_rows = active_data.data[active_data.data["N"] == True].copy()
+    if not n_rows.empty:
+        n_rows["day_bin"] = n_rows["date"].dt.normalize()
+        first_det_map_n = n_rows.groupby("day_bin")["date"].min()
+        first_detection_n = pd.Series(
+            [first_det_map_n.get(t, pd.NaT) for t in aggregate_1D.index],
+            index=aggregate_1D.index,
+        ).dt.tz_localize(offset_an)
+    else:
+        first_detection_n = pd.Series([pd.NaT] * len(aggregate_1D.index), index=aggregate_1D.index)
+
+    # P review labels per day
+    manual_p = copy.deepcopy(active_data)
+    manual_p = manual_p.filter("P==True")
+    manual_presence_p = manual_p.calc_time_aggregate_1D(integration_time='1D',
+                                                        is_binary=True,
+                                                        start_date=pd.Timestamp(start_date),
+                                                        end_date=pd.Timestamp(end_date))
+    manual_presence_p = list(manual_presence_p.values[:, 0])
+
+    p_rows = active_data.data[active_data.data["P"] == True].copy()
+    if not p_rows.empty:
+        p_rows["day_bin"] = p_rows["date"].dt.normalize()
+        first_det_map_p = p_rows.groupby("day_bin")["date"].min()
+        first_detection_p = pd.Series(
+            [first_det_map_p.get(t, pd.NaT) for t in aggregate_1D.index],
+            index=aggregate_1D.index,
+        ).dt.tz_localize(offset_an)
+    else:
+        first_detection_p = pd.Series([pd.NaT] * len(aggregate_1D.index), index=aggregate_1D.index)
+
     df = pd.DataFrame({'Start time (recordings time zone)': start_time_rec,
                        'End time (recordings time zone)': end_time_rec,
                        'Start time (analysis time zone)': start_time_an,
                        'End time (analysis time zone)': end_time_an,
                        'Number of detections': n_detections,
-                       "Manual Review": manual_presence,
-                       "Detection time (analysis time zone)": first_detection,
+                       "Manual Review Y": manual_presence,
+                       "Detection Y time (analysis time zone)": first_detection,
+                       "Manual Review N": manual_presence_n,
+                       "Detection N time (analysis time zone)": first_detection_n,
+                       "Manual Review P": manual_presence_p,
+                       "Detection P time (analysis time zone)": first_detection_p,
                        })
     df["Comments"] = ""
     preamble1 = f"SoundScope version: {__version__} \n"
