@@ -206,12 +206,11 @@ global frequency_buffer_widget
 global recordings_timezone
 global analysis_timezone
 global TZ_offset
-global comment_dialog_target_row  # row index (in the Tabulator's current display) being edited by the Comment dialog
+global comment_dialog_target_row
 
 logger.debug("Initializing variables..")  # Log initialization of variables.
 
-# On new macOS, tkinter file dialogs run in a throwaway subprocess to stop the dialog box from getting stuck in the background
-# A fresh subprocess gets its own clean Cocoa/NSApplication instance and is the OS's real foreground process the moment it opens
+# tkinter file dialogs need to run on throwaway subprocess for macOS to prevent the dialog box from getting stuck in the background
 _TK_DIALOG_HELPER_SCRIPT = """
 import sys
 import tkinter as tk
@@ -526,24 +525,17 @@ dataframe_explorer_widget = pn.widgets.Tabulator(
     },
 )
 
-# Read-only overview of every currently-displayed detection that has a comment
-# (Comments tab, next to Detections). Kept in sync with dataframe_explorer_widget
-# via update_comments_overview(); clicking a row plots that detection's spectrogram.
+# Comment table widget under Comments tab
 comments_overview_widget = pn.widgets.Tabulator(
-    name="Comments Overview",
-    # Give "date" a real datetime64 dtype from the start (not just an empty/object
-    # column) so Tabulator infers a proper date column type immediately, matching
-    # dataframe_explorer_widget's formatting once real rows are loaded in later.
-    value=pd.DataFrame({"date": pd.Series(dtype="datetime64[ns]"), "comment": pd.Series(dtype="object")}),
-    selectable=1,
+    value=pd.DataFrame({"date": pd.Series(dtype="datetime64[ns]"), "comment": pd.Series(dtype="object")}),  # Assign datetime64 dtype to date column, and object dtype (string) to comment column
+    selectable=1,                                                                                           # Only one row can be selected at a time
     height=655,
-    disabled=True,
-    pagination="remote",
-    page_size=14,  # Without an explicit page size, long comment text can make each
-    # row tall enough that only ~1 row fits per page within a fixed height.
+    disabled=True,                                                                                          # Makes the cells read-only, so double-clicking doesn't open an editor. 
+    pagination="remote",                                                                                    # "Remote" means Python keeps all the data and sends the browser only the current page, which keeps things fast if there are many comments
+    page_size=14,                                                                                           # 14 rows per page. Without it, Tabulator works out how many rows fit in the 655px height from row height, and long comments that wrap make rows tall enough that only about one fits per page.
     show_index=False,
-    layout="fit_columns",  # stretch "comment" to fill the remaining width, however long it is
-    widths={"date": 200},  # Give "date" some breathing room instead of hugging "comment".
+    layout="fit_columns",                                                                                   # Set columns to fit table's full width
+    widths={"date": 200},                                                                                   # Sets the date column to 200px wide
     text_align={
         "date": "left",
     },
@@ -555,10 +547,11 @@ comments_overview_widget = pn.widgets.Tabulator(
 # spectrogram_plot_pane = pn.pane.PNG('images/SoundScopeWelcome.png',height=565,)
 
 
+# A pn.pane.Image set to stretch its width gives its box a large fixed height,
+# so there was a big empty gap between the picture and the comment shown below it.
+# With a plain <img>, the box is exactly as tall as the picture, so the comment sits right under it.
 def spectrogram_image_html(image_bytes, mime_type):
-    # Plain <img> in an HTML pane so the box is exactly as tall as the picture and the comment sits right under it
-    # (pn.pane.Image with a stretching width gives its box a huge fixed height, which left a big gap above the comment)
-    # max-height keeps tall images, like the square welcome logo, inside the 565 px spectrogram area
+    # Converts the binary image into base64 text so it can go straight into HTML.
     b64 = base64.b64encode(image_bytes).decode("utf-8")
     return f"<img src='data:{mime_type};base64,{b64}' style='display:block; width:100%; height:auto; max-height:565px; object-fit:contain;'>"
 
@@ -569,14 +562,17 @@ with open('images/SoundScopeWelcome.png', 'rb') as welcome_file:
 spectrogram_comment_display = pn.pane.Markdown("", sizing_mode="stretch_width", visible=False)
 
 
+# Shows the comment below the spectrogram, or hides the area when there isn't one,
+# so detections without a comment don't leave an empty "Comment:" box under the picture.
 def show_spectrogram_comment(comment_text):
-    """Show the comment below the spectrogram, or hide the area when there isn't one."""
+    # An empty comment comes back as NaN (not "") after a save and reload, so check it's real text first.
     if isinstance(comment_text, str) and comment_text.strip():
         spectrogram_comment_display.object = f"**Comment:**\n\n{comment_text}"
         spectrogram_comment_display.visible = True
     else:
         spectrogram_comment_display.object = ""
         spectrogram_comment_display.visible = False
+
 spectrogram_metadata_explorer = pn.widgets.Tabulator(
     name="Metadata",
     sizing_mode="stretch_width",
@@ -713,7 +709,8 @@ def update_analysis_timezone_text(analysis_timezone):
     analysis_timezone_text.object = r"<p style = 'text-align:right;'><font size=3px'>Time zone of analysis: UTC " + str(
         analysis_timezone) + "</font color></p>"
     # analysis_timezone_text.object = "<right># Time zone of analysis: UTC " + str(analysis_timezone) + "</right>"
-    deployment_analysis_timezone_text.value= "UTC " + str(analysis_timezone)
+    # <br> puts "UTC #" on the line below the "Analysis time zone:" label
+    deployment_analysis_timezone_text.value= "<br>UTC " + str(analysis_timezone)
 
 
 
@@ -894,7 +891,7 @@ def update_active_data(widget_name):
             'label_class=="' + class_label + '"', inplace=True
         )  # It seems to select something by default.
 
-        # Filter switch: drop detections outside the deployment start/end dates
+        # Deployment only switch: drop detections outside the deployment start/end dates
         if deployment_only_toggle.value:
             start = deployment_start_date_picker.value.strftime("%Y-%m-%d %H:%M:%S")
             end = deployment_end_date_picker.value.strftime("%Y-%m-%d %H:%M:%S")
@@ -910,7 +907,8 @@ def update_active_data(widget_name):
         # calculate_2D_aggregates( active_data, agg_interval)
 
         # reset time filter
-        # With the filter switch on, use the filtered range so the picker doesn't show dates outside the deployment
+        # If the deployment only switch on, use the filtered range so the picker doesn't show dates outside the deployment
+        # else, use the whole file's range, from the first to the last detection with no filters applied
         if deployment_only_toggle.value:
             datetime_range_picker.value = (
                 active_data.data["date"].min(),
@@ -1598,6 +1596,8 @@ def callback_histogram_selection(*events):
 
 
 def show_time_zone_configuration_modal(event):
+    # The template only has one modal, shared by the time zone, comment and auto-save boxes,
+    # so the other two are hidden first or they'd show up stacked underneath it.
     comment_modal_content.visible = False
     auto_save_modal_content.visible = False
     timezone_modal_content.visible = True
@@ -1614,8 +1614,9 @@ def close_time_zone_configuration_modal(event):
     recordings_timezone = timezone_audio_recording_select.value
     analysis_timezone = timezone_analysis_recording_select.value
 
-    # New .nc file, so turn auto-save off and ask about the path once the file is loaded
-    # Otherwise the timer keeps saving the new deployment into the previous deployment's file
+    # This function only runs when Load is clicked in the time zone box, which opens after a new .nc file is selected
+    # Turn auto-save off, otherwise it keeps saving the new deployment into the previous deployment's file
+    # If auto-save was on, remember it so the auto-save box can ask about the path once the file is loaded
     ask_auto_save_path = auto_save_toggle.value and auto_save_nc_path
     auto_save_toggle.value = False
 
@@ -1632,7 +1633,8 @@ def close_time_zone_configuration_modal(event):
     # TODO : Add the pleliminary time zone selection widget modal code here.
     # Show the time zone configuration modal.
 
-    # Swap to the auto-save content instead of closing, since closing and reopening in one callback can leave it closed
+    # If auto-save was on, swap the time zone box for the auto-save box and keep the modal open
+    # Closing the modal and opening it again in the same function can leave it closed, so return before close_modal
     if ask_auto_save_path:
         show_auto_save_path_modal()
         return
@@ -2041,6 +2043,7 @@ def spectrogram_plot(index=None):
         start_time = time.perf_counter()  # start timer
         # spectrogram_plot_pane.object = 'selection_spectro.jpg'
         # spectrogram_plot_pane.param.trigger("object")
+        #spectrogram_plot_pane.object = buf
         spectrogram_plot_pane.object = spectrogram_image_html(buf.getvalue(), "image/jpeg")
         end_time = time.perf_counter()  # end timer
         elapsed_time = end_time - start_time
@@ -2150,12 +2153,13 @@ def load_dataframe_explorer_widget(
                     # default every row to False so the table still renders correctly.
                     for col in ["Y", "N", "P"]:
                         df[col] = subselection.data[col] if col in subselection.data.columns else False
-                    # Comment text (hidden) plus a boolean helper column that renders
-                    # as a clickable info icon in every row, green when a comment
-                    # exists (see comment_icon formatter on dataframe_explorer_widget).
+                    # Copy the comment text, hidden in the table by hidden_columns, or "" if the .nc file has no comment column yet
                     df["comment"] = subselection.data["comment"] if "comment" in subselection.data.columns else ""
+                    # True if the row has a comment, which the table shows as an orange ⓘ icon, False shows a plain ⓘ icon
+                    # fillna("") is needed because an empty comment comes back as NaN after a save and reload
                     df["comment_icon"] = df["comment"].fillna("").astype(str).str.strip().ne("")
-                    df = df.sort_values("date")  # Default the table to date order.
+                    # Sort by date so the table opens in time order
+                    df = df.sort_values("date")
                     dataframe_explorer_widget.value = df
 
                     dataframe_explorer_index_list = dataframe_explorer_widget.value.index.tolist()
@@ -2197,9 +2201,9 @@ def click_dataframe_explorer_widget(event=None):
             last_plotted_index = selected_raw_index
             print(f"Index of the detection selected: {selected_raw_index}")
 
-            # Keep the Comments tab's selection in step: highlight the same
-            # detection there if it has a comment (and is therefore listed),
-            # otherwise clear it rather than leaving a stale row selected.
+            # Select the same detection in the comment table under the Comments tab
+            # selection takes row positions, not index labels, so get_loc turns the detection's index into its row number
+            # If the detection has no comment, clear the selection so an old row doesn't stay highlighted
             if comments_overview_widget.value is not None and selected_raw_index in comments_overview_widget.value.index:
                 comments_overview_widget.selection = [comments_overview_widget.value.index.get_loc(selected_raw_index)]
             else:
@@ -2212,37 +2216,42 @@ def click_dataframe_explorer_widget(event=None):
         return None
 
 
+# Fills the comment table under the Comments tab with every detection that has a comment
+# It reads active_data instead of the Detections table, so it lists comments from the whole filtered dataset,
+# not just the hour or day the datetime picker is set to
 def update_comments_overview(event=None):
-    """Keep the Comments tab's date/comment table in sync with all commented detections.
-
-    Sourced from active_data.data (not dataframe_explorer_widget.value) so it lists every
-    comment across the whole dataset, regardless of which hour/day window
-    dataframe_explorer_widget is currently narrowed to via the datetime range picker.
-    """
+    # No file loaded yet, or the file has no comment column, so show an empty table
     if active_data is None or active_data.data is None or "comment" not in active_data.data.columns:
         comments_overview_widget.value = pd.DataFrame(columns=["date", "comment"])
         return
     df = active_data.data
+    # True for rows with comment text, fillna("") is needed because an empty comment comes back as NaN after a save and reload
     has_comment = df["comment"].fillna("").astype(str).str.strip().ne("")
+    # Keep only the date and comment of those rows, in time order
+    # copy() gives the table its own data instead of a view into active_data
     comments_overview_widget.value = df.loc[has_comment, ["date", "comment"]].sort_values("date").copy()
 
 
+# Plots the spectrogram for the detection clicked in the comment table under the Comments tab
 def click_comments_overview_widget(event=None):
-    """Plot the spectrogram for the detection selected in the Comments overview table."""
     global last_plotted_index
 
     try:
+        # Nothing selected, or the table is empty
         if not comments_overview_widget.selection or comments_overview_widget.value is None:
             return
+        # selection holds the row number, .name gives that row's index, which is the detection's index in the dataset
         selected_index = int(comments_overview_widget.value.iloc[comments_overview_widget.selection[0]].name)
 
+        # Skip if this detection is already plotted
         if selected_index == last_plotted_index:
             return
 
         last_plotted_index = selected_index
 
-        # Keep the Detections tab's selection in step: highlight the same
-        # detection there if it's currently in view, otherwise clear it.
+        # Select the same detection in the Detections table, if it's in the current datetime window
+        # selection takes row positions, not index labels, so get_loc turns the detection's index into its row number
+        # Otherwise clear the selection so an old row doesn't stay highlighted
         if dataframe_explorer_widget.value is not None and selected_index in dataframe_explorer_widget.value.index:
             dataframe_explorer_widget.selection = [dataframe_explorer_widget.value.index.get_loc(selected_index)]
         else:
@@ -2250,6 +2259,7 @@ def click_comments_overview_widget(event=None):
 
         spectrogram_plot(index=selected_index)
 
+    # The selected row number is past the end of the table, e.g. right after the table was refreshed
     except IndexError:
         return None
 
@@ -2347,17 +2357,20 @@ def save_hourly_csv_file(event=None):
     else:
         first_detection_p = pd.Series([pd.NaT] * len(aggregate_1H.index), index=aggregate_1H.index)
 
-    # All comments per hour, joined with "; " when more than one falls in the same bin
-    comment_rows = active_data.data[
-        active_data.data["comment"].fillna("").astype(str).str.strip().ne("")
-    ].copy()
+    # Comments column for the CSV, all comments in each hour joined with "; " when more than one falls in the same hour
+    # Keep only detections with comment text, fillna("") is needed because an empty comment comes back as NaN after a save and reload
+    comment_rows = active_data.data[active_data.data["comment"].fillna("").astype(str).str.strip().ne("")].copy()
     if not comment_rows.empty:
+        # Round each detection's time down to the start of its hour, e.g. 14:37 becomes 14:00
         comment_rows["hour_bin"] = comment_rows["date"].dt.floor("h")
+        # One entry per hour that has comments, with that hour's comments joined into one string
         comments_map = comment_rows.groupby("hour_bin")["comment"].apply("; ".join)
+        # Line the comments up with the CSV's hour rows, hours with no comment get ""
         comments_per_bin = pd.Series(
             [comments_map.get(t, "") for t in aggregate_1H.index],
             index=aggregate_1H.index,
         )
+    # No comments at all, so every hour gets ""
     else:
         comments_per_bin = pd.Series([""] * len(aggregate_1H.index), index=aggregate_1H.index)
 
@@ -2472,17 +2485,20 @@ def save_daily_csv_file(event=None):
     else:
         first_detection_p = pd.Series([pd.NaT] * len(aggregate_1D.index), index=aggregate_1D.index)
 
-    # All comments per day, joined with "; " when more than one falls in the same bin
-    comment_rows = active_data.data[
-        active_data.data["comment"].fillna("").astype(str).str.strip().ne("")
-    ].copy()
+    # Comments column for the CSV, all comments in each day joined with "; " when more than one falls on the same day
+    # Keep only detections with comment text, fillna("") is needed because an empty comment comes back as NaN after a save and reload
+    comment_rows = active_data.data[active_data.data["comment"].fillna("").astype(str).str.strip().ne("")].copy()
     if not comment_rows.empty:
+        # Set each detection's time to midnight of its day, e.g. 2024-05-03 14:37 becomes 2024-05-03 00:00
         comment_rows["day_bin"] = comment_rows["date"].dt.normalize()
+        # One entry per day that has comments, with that day's comments joined into one string
         comments_map = comment_rows.groupby("day_bin")["comment"].apply("; ".join)
+        # Line the comments up with the CSV's day rows, days with no comment get ""
         comments_per_bin = pd.Series(
             [comments_map.get(t, "") for t in aggregate_1D.index],
             index=aggregate_1D.index,
         )
+    # No comments at all, so every day gets ""
     else:
         comments_per_bin = pd.Series([""] * len(aggregate_1D.index), index=aggregate_1D.index)
 
@@ -2626,18 +2642,16 @@ class KeyboardShortcut(JSComponent):
       const div = document.createElement('div');
       // Listen to keydown globally
       document.addEventListener('keydown', (event) => {
-        // Don't fire shortcuts while the user is typing into a text field
-        // (e.g. the Comment dialog's textarea) — 'f'/'s'/arrow keys are
-        // normal text input there, not navigation commands.
-        // Bokeh/Panel widgets render inside a Shadow DOM, so event.target here
-        // would be the shadow host (not the actual focused <textarea>) — use
-        // composedPath() to see through the shadow boundary to the real element.
+        // Skip shortcuts while typing in a text box, like the Comment box, so letters and arrow keys type normally
+        // Panel widgets sit inside a Shadow DOM, so event.target is the widget's outer element, not the text box
+        // composedPath()[0] gives the element that actually has focus
         const target = event.composedPath()[0];
         const tag = target && target.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || (target && target.isContentEditable)) {
           return;
         }
-        // Y/N/P review keys, skipped with Cmd/Ctrl/Alt so Cmd+P (print) and Cmd+N (new window) still work
+        // Y/N/P keys toggle the review columns of the selected row, the Python side runs _handle_review_key_y/n/p
+        // Skipped when Cmd/Ctrl/Alt is held, so Cmd+P (print) and Cmd+N (new window) still work
         const reviewKey = event.key.toUpperCase();
         if (!event.metaKey && !event.ctrlKey && !event.altKey && ['Y', 'N', 'P'].includes(reviewKey)) {
           model.send_event('review_key_' + reviewKey.toLowerCase(), event)
@@ -2736,8 +2750,8 @@ def save_nc_file(event):
     # Replace empty strings with NaN in numeric columns to prevent type-cast
     # errors during netCDF serialization (e.g. hydrophone_depth = '')
     dataset_to_save.data.replace('', float('nan'), inplace=True)
-    # ...but keep "comment" a plain string column (NaN would mix str/float in
-    # one column, which can break netCDF serialization of that variable).
+    # The line above also turns empty comments into NaN, so turn them back into "" here
+    # NaN is a float, and a column mixing text and floats can fail to save to the .nc file
     if "comment" in dataset_to_save.data.columns:
         dataset_to_save.data["comment"] = dataset_to_save.data["comment"].fillna("")
     dataset_to_save.to_netcdf(filename)
@@ -2762,15 +2776,20 @@ def _auto_save_to_nc():
         error_notification(f'Auto-save failed: {e}')
 
 
+# Runs whenever the Autosave switch changes, whether the user clicked it or the code set auto_save_toggle.value
+# "On" starts saving to auto_save_nc_path every 10 minutes, "off" stops the timer
 def on_auto_save_toggle(event):
     global auto_save_nc_path, auto_save_callback, skip_auto_save_path_prompt
-    if event.new:  # toggled on
+    # Switch turned on
+    if event.new:
+        # A path is already saved, so ask with the auto-save box whether to keep using it
+        # skip_auto_save_path_prompt is True when the box's own buttons turned the switch on, so it doesn't ask twice
+        # The switch goes back off until a button is clicked, so closing the box leaves auto-save off
         if auto_save_nc_path and not skip_auto_save_path_prompt:
-            # Path already stored, ask if the user wants to keep using it
-            # Switch goes back off until they pick, so closing the modal leaves auto-save off
             auto_save_toggle.value = False
             show_auto_save_path_modal()
             return
+        # Reset so the next time the user turns the switch on, the box asks again
         skip_auto_save_path_prompt = False
         if not auto_save_nc_path:
             # No path yet — ask once via the normal Save As dialog
@@ -2864,57 +2883,52 @@ def enforce_checkbox_mutual_exclusivity(event):
 dataframe_explorer_widget.param.watch(enforce_checkbox_mutual_exclusivity, "value")
 
 
+# Copies the Y/N/P ticks and comments from the Detections table back into dataset and active_data
+# The table only holds a copy of the rows in view, so without this the changes would be lost when the table reloads
+# Saving writes dataset to the .nc file, so the changes are kept, and load_dataset keeps them on the next load
 def sync_checkbox_to_dataset(event):
-    """Sync Y/N/P checkbox and comment values from the widget back to dataset.data and active_data.data.
-
-    This ensures any checkbox/comment changes made in the table are persisted in the
-    master dataset object. When the user saves via save_nc_file(), the updated
-    Y/N/P/comment columns will be included in the .nc file automatically.
-
-    On next load, load_dataset() will detect the existing Y/N/P/comment columns and
-    preserve their values rather than resetting them.
-    """
     global dataset, active_data
+    # No file loaded yet, or the table was emptied
     if dataset is None or event.new is None:
         return
+    # The columns to copy back, the review ticks and the comment text
     checkbox_cols = ["Y", "N", "P", "comment"]
+    # Stop if the table or dataset is missing any of these columns, rather than copying only some of them
     if not all(c in event.new.columns for c in checkbox_cols):
         return
     if not all(c in dataset.data.columns for c in checkbox_cols):
         return
-    # Use the widget DataFrame's pandas index to update only the rows
-    # currently displayed (preserving checkbox states for rows not in view).
-    # We always use intersection() rather than a bare .loc[widget_index] because
-    # to_netcdf() may mutate dataset.data's index (e.g. ecosound sets 'date' as
-    # the xarray index during serialisation), making the widget's integer indices
-    # stale. If the intersection is empty we fall back to matching by 'date' values.
     for col in checkbox_cols:
+        # Rows that are in both the table and dataset, matched by index (the detection's row number in the dataset)
+        # Only rows in the table are updated, so ticks on rows outside the current window stay as they are
+        # intersection() is used instead of .loc[table index] so an index that no longer matches doesn't raise a KeyError
         common_idx = dataset.data.index.intersection(event.new.index)
         if not common_idx.empty:
             dataset.data.loc[common_idx, col] = event.new.loc[common_idx, col].values
+        # No index matches, which happens if dataset's index was changed, e.g. ecosound's to_netcdf can set date as the index
+        # so match the rows by their date instead
         elif "date" in event.new.columns and "date" in dataset.data.columns:
-            # Index types diverged after save — match rows by their 'date' value instead.
+            # Look-up from each table row's date to its value in this column
             date_to_val = dict(zip(event.new["date"], event.new[col]))
+            # Rows in dataset whose date is in the table
             mask = dataset.data["date"].isin(date_to_val)
+            # Give each of those rows the value from the look-up
             dataset.data.loc[mask, col] = dataset.data.loc[mask, "date"].map(date_to_val)
 
+        # Same copy into active_data, the filtered copy the plots and the comment table read from
         if active_data is not None and col in active_data.data.columns:
-            active_data.data.loc[
-                active_data.data.index.intersection(event.new.index), col
-            ] = event.new.loc[
-                active_data.data.index.intersection(event.new.index), col
-            ].values
+            active_data.data.loc[active_data.data.index.intersection(event.new.index), col] = event.new.loc[active_data.data.index.intersection(event.new.index), col].values
 
 
 dataframe_explorer_widget.param.watch(sync_checkbox_to_dataset, "value")
-# Registered after sync_checkbox_to_dataset so active_data.data already has the
-# just-saved comment by the time this reads it (param dispatches "value" watchers
-# in registration order).
+# Refresh the comment table under the Comments tab whenever the Detections table changes
+# This must come after the sync_checkbox_to_dataset watch above, because watchers run in the order they're added
+# That way active_data already has the new comment by the time update_comments_overview reads it
 dataframe_explorer_widget.param.watch(update_comments_overview, "value")
 
 
 def on_checkbox_click(event):
-    """Toggle Y/N/P checkbox on single cell click, only if the row is selected."""
+    #Toggle Y/N/P checkbox on single cell click, only if the row is selected.
     if event.column not in ["Y", "N", "P"]:
         return
     if dataframe_explorer_widget.value is None:
@@ -2929,19 +2943,25 @@ def on_checkbox_click(event):
 dataframe_explorer_widget.on_click(on_checkbox_click)
 
 
+# Toggles Y/N/P on the selected detection when its key is pressed, same as clicking its cell
+# Setting .value runs the same watchers as a click, so the other two columns get unticked
+# and the change is copied back into dataset by sync_checkbox_to_dataset
 def toggle_review_column_from_key(col):
-    """Toggle Y/N/P on the selected detection from the keyboard, same as clicking its cell."""
+    # No table loaded yet, or no row selected
     if dataframe_explorer_widget.value is None or not dataframe_explorer_widget.selection:
         return
     if col not in dataframe_explorer_widget.value.columns:
         return
     row = dataframe_explorer_widget.selection[0]
+    # Work on a copy, so setting .value below counts as a change and the watchers run
     df = dataframe_explorer_widget.value.copy()
+    # Flip the selected row's tick, True becomes False and False becomes True
     df.iloc[row, df.columns.get_loc(col)] = not df.iloc[row][col]
-    # Reassigning .value resets the Tabulator's selection, so keep it
+    # Setting .value clears the table's selection, so save it first and put it back after
     current_selection = dataframe_explorer_widget.selection
     dataframe_explorer_widget.value = df
     dataframe_explorer_widget.selection = current_selection
+
 
 watcher_lineplot = lineplot_tap.param.watch(
     callback_histogram_selection, ["x", "y"], onlychanged=False
@@ -2978,9 +2998,11 @@ timezone_analysis_recording_select = pn.widgets.Select(
 
 )
 modal_load_button = pn.widgets.Button(name="Ok", button_type="primary", width=250, height=40, margin=17, align='center')
-# template.modal is a single shared slot, so each dialog's content lives in its own
-# Column and only one is made `visible` at a time (see open_comment_dialog/save_comment/
-# cancel_comment below).
+
+# The template only has one modal, so the time zone, comment and auto-save boxes are all added to it below
+# Each box is its own Column, and the function that opens one hides the other two first
+
+# Time zone box, opens after a .nc file is picked, the only one visible by default
 timezone_modal_content = pn.Column(
     "<center> <font size='6'> <b> Define time zones </b> </font> </center>",
     pn.Row(
@@ -2993,6 +3015,7 @@ timezone_modal_content = pn.Column(
     ),
 )
 
+# Comment box, opens when a row's comment icon is clicked in the Detections table
 comment_textarea = pn.widgets.TextAreaInput(
     name="", placeholder="Add a comment...", height=150, sizing_mode="stretch_width"
 )
@@ -3002,9 +3025,11 @@ comment_modal_content = pn.Column(
     "<center> <font size='6'> <b> Comment </b> </font> </center>",
     comment_textarea,
     pn.Row(comment_cancel_button, comment_save_button, align='center'),
-    visible=False,
+    visible=False,  # Hidden until open_comment_dialog shows it
 )
 
+# Auto-save box, asks whether to keep using the saved auto-save path
+# The path text is filled in by show_auto_save_path_modal when the box opens
 auto_save_path_text = pn.pane.Markdown("", sizing_mode="stretch_width")
 auto_save_new_path_button = pn.widgets.Button(name="Choose new file", button_type="default", width=150, margin=10)
 auto_save_use_path_button = pn.widgets.Button(name="Use this file", button_type="primary", width=150, margin=10)
@@ -3012,9 +3037,10 @@ auto_save_modal_content = pn.Column(
     "<center> <font size='6'> <b> Autosave </b> </font> </center>",
     auto_save_path_text,
     pn.Row(auto_save_new_path_button, auto_save_use_path_button, align='center'),
-    visible=False,
+    visible=False,  # Hidden until show_auto_save_path_modal shows it
 )
 
+# Add all three boxes to the template's one modal
 template.modal.append(timezone_modal_content)
 template.modal.append(comment_modal_content)
 template.modal.append(auto_save_modal_content)
@@ -3041,20 +3067,25 @@ template.modal.append(auto_save_modal_content)
 modal_load_button.on_click(close_time_zone_configuration_modal)
 
 
+# Opens the comment box for one row of the Detections table, filled in with that row's current comment
+# The row is saved in comment_dialog_target_row so save_comment knows which row to write to
 def open_comment_dialog(row):
-    """Open the modal Comment dialog pre-filled with the selected row's comment text."""
     global comment_dialog_target_row
     comment_dialog_target_row = row
     current_value = dataframe_explorer_widget.value.iloc[row]["comment"]
+    # An empty comment comes back as NaN after a save and reload, so only fill in real text
     comment_textarea.value = current_value if isinstance(current_value, str) else ""
+    # Hide the other two boxes, since all three share the template's one modal
     timezone_modal_content.visible = False
     auto_save_modal_content.visible = False
     comment_modal_content.visible = True
     template.open_modal()
 
 
+# Runs on every click in the Detections table, but only opens the comment box for a click on the comment icon
+# The row has to be selected first, same as the Y/N/P cells, so a stray click doesn't open the box
 def on_comment_icon_click(event):
-    """Open the Comment dialog when a row's info icon is clicked, only if the row is selected."""
+    # Clicked a different column, on_checkbox_click handles the Y/N/P ones
     if event.column != "comment_icon":
         return
     if dataframe_explorer_widget.value is None:
@@ -3064,39 +3095,37 @@ def on_comment_icon_click(event):
     open_comment_dialog(event.row)
 
 
+# on_click adds to a list of handlers, so this runs alongside on_checkbox_click instead of replacing it
 dataframe_explorer_widget.on_click(on_comment_icon_click)
 
 
+# Writes the comment box's text into the Detections table and closes the box
+# Setting .value runs sync_checkbox_to_dataset, which copies the comment into dataset so it gets saved to the .nc file
 def save_comment(event):
-    """Persist the edited comment text back into the table and close the dialog."""
     global comment_dialog_target_row
+    # No row picked to write to, or no table loaded
     if comment_dialog_target_row is None or dataframe_explorer_widget.value is None:
         return
+    # Work on a copy, so setting .value below counts as a change and the watchers run
     df = dataframe_explorer_widget.value.copy()
     comment_text = comment_textarea.value
     df.iloc[comment_dialog_target_row, df.columns.get_loc("comment")] = comment_text
+    # Update the icon too, orange if there's text now, plain if the comment was cleared
     df.iloc[comment_dialog_target_row, df.columns.get_loc("comment_icon")] = bool((comment_text or "").strip())
-    # Reassigning .value resets the Tabulator's selection, so preserve it across the save.
+    # Setting .value clears the table's selection, so save it first and put it back after
     current_selection = dataframe_explorer_widget.selection
     dataframe_explorer_widget.value = df
     dataframe_explorer_widget.selection = current_selection
-    # Update the comment under the spectrogram straight away if it's showing this detection,
-    # otherwise it only refreshed after clicking another row and back
+    # Update the comment under the spectrogram straight away if it's showing this detection
+    # otherwise it only refreshes after clicking another row and back
     if df.index[comment_dialog_target_row] == last_plotted_index:
         show_spectrogram_comment(comment_text)
     comment_dialog_target_row = None
-    # Don't touch modal-content visibility here — Panel/Bokeh batches every
-    # property change made within one callback into a single client update,
-    # so toggling it "after" close_modal() in Python doesn't mean it's applied
-    # after the modal actually closes on screen; it still flashes. Whichever
-    # modal opens next (open_comment_dialog / show_time_zone_configuration_modal)
-    # already sets the correct visibility for its own content right before
-    # calling open_modal(), so it doesn't need to be reset here.
     template.close_modal()
 
 
+# Closes the comment box without saving, so any typed text is thrown away
 def cancel_comment(event):
-    """Discard any edits and close the dialog."""
     global comment_dialog_target_row
     comment_dialog_target_row = None
     template.close_modal()
@@ -3106,25 +3135,28 @@ comment_save_button.on_click(save_comment)
 comment_cancel_button.on_click(cancel_comment)
 
 
+# Opens the auto-save box showing the saved auto-save path, asking whether to keep using it
+# Used when the Autosave switch is turned on with a path saved, and after a new .nc file is loaded
 def show_auto_save_path_modal():
-    """Show the stored auto-save path and ask whether to keep using it."""
     auto_save_path_text.object = f"Auto-save is set to save to:\n\n`{auto_save_nc_path}`\n\nKeep using this file?"
+    # Hide the other two boxes, since all three share the template's one modal
     timezone_modal_content.visible = False
     comment_modal_content.visible = False
     auto_save_modal_content.visible = True
     template.open_modal()
 
 
+# "Use this file" button, turns auto-save back on with the saved path
 def use_auto_save_path(event):
-    """Turn auto-save back on with the stored path."""
     global skip_auto_save_path_prompt
     template.close_modal()
+    # Turning the switch on runs on_auto_save_toggle, which would open this box again without the flag
     skip_auto_save_path_prompt = True
     auto_save_toggle.value = True
 
 
+# "Choose new file" button, picks a new auto-save file with the Save As dialog, then turns auto-save on with it
 def choose_new_auto_save_path(event):
-    """Pick a new auto-save file, then turn auto-save back on with it."""
     global auto_save_nc_path, skip_auto_save_path_prompt
     template.close_modal()
     path = show_save_file_dialog(filename=data_file_name, extension='.nc')
@@ -3132,6 +3164,7 @@ def choose_new_auto_save_path(event):
     if not path:
         return
     auto_save_nc_path = path
+    # Turning the switch on runs on_auto_save_toggle, which would open this box again without the flag
     skip_auto_save_path_prompt = True
     auto_save_toggle.value = True
 
@@ -3318,8 +3351,6 @@ spectro_settings_widgetbox = pn.WidgetBox(
 deployment_dates_widgetbox = pn.WidgetBox(
     pn.Row(
         deployment_analysis_timezone_text,
-        # Fixed widths so the analysis time zone text gets the rest of the row instead of a third of it
-        # Right-aligned so the word sits next to the switch, without clipping if a font is wider
         pn.widgets.StaticText(value='Update graph', margin=(8, 0, 0, 10), sizing_mode="fixed", width=95, styles={'white-space': 'nowrap', 'text-align': 'right'}),
         deployment_only_toggle,
     ),
@@ -3380,9 +3411,11 @@ menu_edit_widget.on_click(top_menu_edit_actions)
 auto_save_toggle.param.watch(on_auto_save_toggle, 'value')
 
 
+# Runs when the deployment start or end date is changed, and redraws the graphs with the new dates
+# The dates only filter the data when the "Update graph" switch is on, so nothing happens when it's off
 def on_deployment_dates_change(event):
-    # The dates only filter the data when the filter switch is on, so only redraw then
-    # Triggering the switch reruns create_1D_plot/create_2D_plot, which call update_active_data
+    # trigger tells everything watching the switch that it changed, without changing its value
+    # That reruns create_1D_plot and create_2D_plot, which call update_active_data to refilter with the new dates
     if deployment_only_toggle.value:
         deployment_only_toggle.param.trigger('value')
 
