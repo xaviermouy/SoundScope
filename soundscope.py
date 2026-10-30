@@ -1626,6 +1626,11 @@ def close_time_zone_configuration_modal(event):
     update_active_data(
         "Initial data load event complete!")  # Update the active data object with the settings from the widgets.
     show_datetime_range_picker()  # Show the datetime range slider.
+    # The table and graphs only rebuild when the class label, threshold or datetime range changes
+    # A file with the same detections, like one saved after adding comments, leaves them all the same,
+    # so the table kept showing the previous file's Y/N/P and comments
+    # trigger reruns everything that depends on the class label, so every new .nc file rebuilds them
+    class_label_widget.param.trigger('value')
     # load_dataframe_explorer_widget(class_label_widget, threshold_widget, datetime_range_picker) # Load the dataframe explorer widget with the active_data object.
 
     # Close the modal object from panel template object.
@@ -1912,7 +1917,16 @@ def spectrogram_plot(index=None):
 
         # load audio data
         start_time = time.perf_counter()  # start timer
-        sound = Sound(wavfilename)
+        # Stop here if the audio file can't be found, e.g. the audio folder hasn't been selected yet
+        # Without this, the error stops create_1D_plot/create_2D_plot from redrawing the graphs
+        try:
+            sound = Sound(wavfilename)
+        except ValueError:
+            error_notification("Audio file not found, select the audio folder to see the spectrogram")
+            spectro_loading_spinner.value = False
+            spectro_loading_spinner.name = ''
+            spectro_loading_spinner.visible = False
+            return
         selected_sound = sound
         if t1 < 0:
             t1 = 0
@@ -3414,8 +3428,6 @@ auto_save_toggle.param.watch(on_auto_save_toggle, 'value')
 # Runs when the deployment start or end date is changed, and redraws the graphs with the new dates
 # The dates only filter the data when the "Update graph" switch is on, so nothing happens when it's off
 def on_deployment_dates_change(event):
-    # trigger tells everything watching the switch that it changed, without changing its value
-    # That reruns create_1D_plot and create_2D_plot, which call update_active_data to refilter with the new dates
     if deployment_only_toggle.value:
         deployment_only_toggle.param.trigger('value')
 
