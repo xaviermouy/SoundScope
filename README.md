@@ -74,9 +74,17 @@ If you use SoundScope in your research, please cite it as follows:
 > Mouy, X., Kuo, J., Transue, L., Davis, G., & Holdman, A. SoundScope: a python-based tool for visualization and manual verification of bioacoustic detections. Woods Hole Oceanographic Institution. https://github.com/xaviermouy/SoundScope
 
 # Versions
+### version 20261101
+- Bug fix #41: CHanging audio dir now works on nested folders (recursive file matching) 
+- Bug fix #42: Auto-save now doesn't overwrite the nc file form a previous session 
+- Added ability to add comments to detections (issue #31)
+- Comments exported in the csv files
+- Added keyboard shortcuts for validation labels: Y,N,P (issue #34)
+- Added ability to crop graphs based on deployment start and end datetimes (issue #40)
+
 ### version 20260625
 - Bug fixes (issues #33, #35)
-- Changed colums labels in extracted csv files 
+- Changed columns labels in extracted csv files 
 
 ### version 20260519
 - Implemented feature requests #23, #17, #15
